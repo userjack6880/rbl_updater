@@ -257,7 +257,7 @@ sub add_net {
 	my $sth = $dbh->prepare(q{
 	  INSERT INTO ipnet_blocklist (ip4_net, asn, infractions, infractions_type, ban_expiration, permaban)
 		VALUES (?,?,1,1,NOW(),0)
-		ON DUPLICATE KEY UPDATE infractions = infractions = + 1;
+		ON DUPLICATE KEY UPDATE infractions = infractions + 1;
 	});
 	$sth->execute($prefix,$asn);
 

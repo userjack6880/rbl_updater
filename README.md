@@ -1,6 +1,6 @@
 # RBL Updater Suite
 
-This is the RBL Updater Suite version 0 alpha-1.1 (0-α1.1) by John Bradley (john@systemanomaly.com). The RBL Updater Suite is an Open Source suite of tools to be used in conjunction with rpsamd to help autogenerate a local realtime block list (RBL) not reliant on any external lists, such as spamhaus and the like.
+This is the RBL Updater Suite version 0 alpha-1.2 (0-α1.2) by John Bradley (john@systemanomaly.com). The RBL Updater Suite is an Open Source suite of tools to be used in conjunction with rpsamd to help autogenerate a local realtime block list (RBL) not reliant on any external lists, such as spamhaus and the like.
 
 This software is extremely experimental and may cause collateral damage on deliverability. USE AT YOUR OWN RISK.
 
@@ -23,6 +23,7 @@ For network prefixes, infractions and bans are given based on the number of indi
 - On the third IP permaban, the prefix receives a 1 day ban.
 - Every additional IP permaban after the third results in a 1 week ban.
 - On the twenty-fifth (25th) IP permaban, the prefix is permanently banned.
+- Exception: if more than 10 IP addresses within a prefix have concurrent temporary bans at the same time, the prefix is issued a ban.
 
 Bans are cumulative, and infractions are permanently recorded.
 
