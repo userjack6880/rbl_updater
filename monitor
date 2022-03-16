@@ -412,7 +412,8 @@ while (defined(my $line=$file->read)) {
 	if ($line =~ /^.+milter-reject.+/) {
 		# this will only penalize IPs that exit on the current blocklist or legit spam
 		if ($line =~ /^.+BLOCKLIST.+/ || 
-		    $line =~ /^.+spam.+/ ) {
+		    $line =~ /^.+spam.+/ ||
+		    $line =~ /^.+Spam.+/ ) {
 			if ($line =~ m/^.+\[(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}).+/) {
 				add_ip($1);
 			}
