@@ -66,8 +66,10 @@ our ($asnlist,$iplist,$dbname,$dbhost,$dbport,$dbuser,$dbpass,$log,$version);
 my $conffile = 'config.conf';
 
 if (-e $conffile) { $conffile = "./$conffile"; }
-elsif (-e File::Basename::dirname($0)."/$conffile") { $conffile = "./".File::Basename::dirname($0)."/$conffile"; }
+elsif (-e File::Basename::dirname($0)."/$conffile") { $conffile = File::Basename::dirname($0)."/$conffile"; }
 else { usage(); die "Error! Could not read $conffile\n"; }
+
+if (substr($conffile,0,1) ne '/' and substr($conffile,0,1) ne '.') { $conffile = "./$conffile"; }
 
 my $conftest = do $conffile;
 die "$conffile could not be parsed: $@" if $@;

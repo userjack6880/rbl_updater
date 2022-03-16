@@ -55,8 +55,10 @@ our ($asnlist,$iplist,$dbname,$dbhost,$dbport,$dbuser,$dbpass,$log,$version);
 my $conffile = 'config.conf';
 
 if (-e $conffile) { $conffile = "./$conffile"; }
-elsif (-e File::Basename::dirname($0)."/$conffile") { $conffile = "./".File::Basename::dirname($0)."/$conffile"; }
+elsif (-e File::Basename::dirname($0)."/$conffile") { $conffile = File::Basename::dirname($0)."/$conffile"; }
 else { usage(); die "Error! Could not read $conffile\n"; }
+
+if (substr($conffile,0,1) ne '/' and substr($conffile,0,1) ne '.') { $conffile = "./$conffile"; }
 
 my $conftest = do $conffile;
 die "$conffile could not be parsed: $@" if $@;
@@ -409,7 +411,8 @@ while (defined(my $line=$file->read)) {
 	# rejects by rspamd might just be greylist bounces
 	if ($line =~ /^.+milter-reject.+/) {
 		# this will only penalize IPs that exit on the current blocklist or legit spam
-		if ($line =~ /^.+BLOCKLIST.+/ || $line =~ /^.+Spam message rejected.+/) {
+		if ($line =~ /^.+BLOCKLIST.+/ || 
+		    $line =~ /^.+spam.+/ ) {
 			if ($line =~ m/^.+\[(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}).+/) {
 				add_ip($1);
 			}
