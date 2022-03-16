@@ -327,6 +327,14 @@ sub add_ip {
 
 	print "\t$infractions infractions\n";
 
+	# check to see if there are more than 10 address in the net that are currently banned... if so, then more severely punish the prefix
+	# does not penalize for permabanned IPs
+	if ($dbh->selectrow_array("SELECT COUNT(*) FROM ip_blocklist WHERE ip4_net = '$range->{prefix}' AND ban_expiration > NOW();") > 10) {
+		print "\tUnusually high infraction from net $range->{prefix}. Punishing\n";
+
+		add_net($range);
+	}
+
 	if ($infractions > 3) {
 		print "$ip is now permanently banned!\n";
 		# adds ip to permaban, add infraction to the IP4net

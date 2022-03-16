@@ -67,11 +67,11 @@ Untested on any other OS, but it's highly recommended on a linux machine to inst
 ## Scripts
 
 Install anywhere you want. Probably will want to run it as a privleged user, or at least one that can access the files specified in the config. Be sure to fill out the config file and remove the .pub extension.
-
 # Latest Changes
 
 ## 0-α1.2
 - Fixed log regex for monitor script.
+- Added a case for where punishment is issued for a prefix has a ton of bad IPs that do not have their ban expirations timeout.
 
 # Planned Features
 
