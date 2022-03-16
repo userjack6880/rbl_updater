@@ -1,6 +1,6 @@
 # RBL Updater Suite
 
-This is the RBL Updater Suite version 0 alpha-1 (0-α1) by John Bradley (john@systemanomaly.com). The RBL Updater Suite is an Open Source suite of tools to be used in conjunction with rpsamd to help autogenerate a local realtime block list (RBL) not reliant on any external lists, such as spamhaus and the like.
+This is the RBL Updater Suite version 0 alpha-1.1 (0-α1.1) by John Bradley (john@systemanomaly.com). The RBL Updater Suite is an Open Source suite of tools to be used in conjunction with rpsamd to help autogenerate a local realtime block list (RBL) not reliant on any external lists, such as spamhaus and the like.
 
 This software is extremely experimental and may cause collateral damage on deliverability. USE AT YOUR OWN RISK.
 
@@ -69,6 +69,9 @@ Untested on any other OS, but it's highly recommended on a linux machine to inst
 Install anywhere you want. Probably will want to run it as a privleged user, or at least one that can access the files specified in the config. Be sure to fill out the config file and remove the .pub extension.
 
 # Latest Changes
+
+## 0-α1.1
+- Fixed bug where config file cannot be found if script is not run from the directory it's located in.
 
 ## 0-α1
 
