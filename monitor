@@ -291,7 +291,7 @@ sub add_net {
 			    WHEN ban_expiration < NOW() THEN DATE_ADD(NOW(), INTERVAL 1 DAY)
 			    WHEN ban_expiration >= NOW() THEN DATE_ADD(ban_expiration, INTERVAL 1 DAY)
 			  END
-			  where ip4net = ?;
+			  where ip4_net = ?;
 			});
 			print "$prefix has recieved a 1 day ban\n";
 		}
@@ -302,7 +302,7 @@ sub add_net {
 			    WHEN ban_expiration < NOW() THEN DATE_ADD(NOW(), INTERVAL 1 WEEK)
 			    WHEN ban_expiration >= NOW() THEN DATE_ADD(ban_expiration, INTERVAL 1 WEEK)
 			  END
-			  where ip4net = ?;
+			  where ip4_net = ?;
 			});
 			print "$prefix has recieved a 1 week ban\n";
 		}
