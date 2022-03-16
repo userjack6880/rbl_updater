@@ -1,0 +1,18 @@
+# RBL Updater Config File -----------------------------------------------------
+
+# see README for instructions regarding these lists
+$asnlist = '/etc/rspamd/local.d/maps/blockasn.map';
+$iplist  = '/etc/rspamd/local.d/maps/blockip.map';
+
+# mail log location
+$log     = '/var/log/mail.log';
+
+# mysql database options
+$dbname  = '';
+$dbhost  = '';
+$dbport  = 3306;
+$dbuser  = '';
+$dbpass  = '';
+
+# version number
+$version = '0 alpha-1';

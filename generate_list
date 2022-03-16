@@ -1,0 +1,130 @@
+#!/usr/bin/perl
+
+# -----------------------------------------------------------------------------
+#
+# RBL Updater Suite
+# generate_list
+# 2022 - John Bradley (userjack6880)
+#
+# Available at: https://github.com/userjack6880/rbl_updater
+#
+# -----------------------------------------------------------------------------
+#
+# This file is part of the RBL Updater Suite for use with rspamd
+#
+# The RBL Updater Suite is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by the Free 
+# Software Foundation, either version 3 of the License, or (at your option) any
+# later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT 
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more 
+# details.
+#
+# You should have received a copy of the GNU General Public License along with 
+# this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# -----------------------------------------------------------------------------
+
+use strict;
+use warnings;
+
+use Getopt::Std;
+use File::Tail;
+use File::Basename;
+use DBI;
+
+# usage sub -------------------------------------------------------------------
+sub usage {
+	print "\n".
+	      "\tUsage:\n".
+	      "\t\t./generate_list\n".
+	      "\n".
+	      "\tThis script generates IP and ASN Banlists for use by RSPAMD. There are".
+	      "\tno further options.\n".
+	      "\n";
+}
+
+# load conf file --------------------------------------------------------------
+our ($asnlist,$iplist,$dbname,$dbhost,$dbport,$dbuser,$dbpass,$log,$version);
+my $conffile = 'config.conf';
+
+if (-e $conffile) { $conffile = "./$conffile"; }
+elsif (-e File::Basename::dirname($0)."/$conffile") { $conffile = "./".File::Basename::dirname($0)."/$conffile"; }
+else { usage(); die "Error! Could not read $conffile\n"; }
+
+my $conftest = do $conffile;
+die "$conffile could not be parsed: $@" if $@;
+die "could not do $conffile: $!" if !defined $conftest;
+
+# declare "global" variables --------------------------------------------------
+my $dbh;
+
+# Begin Main Code -------------------------------------------------------------
+
+print "\nRBL Updater Suite v.$version\n".
+      "\tRSPAMD List Generator\n\n".
+      "Generating Lists\n";
+
+# Open DB connection
+$dbh = DBI->connect(
+            "DBI:mysql:database=$dbname;host=$dbhost;port=$dbport",
+            $dbuser,
+            $dbpass
+          ) or die "Could not connect to database!\n";
+
+# open the IP List file
+open(my $fh, ">$iplist");
+
+# pull out all the Perfixes that are permabanned *or* have a ban expiration *after* today
+my $sth = $dbh->prepare(q{
+  SELECT ip4_net
+  FROM ipnet_blocklist
+  WHERE ban_expiration > NOW()
+     OR permaban = 1;
+});
+$sth->execute();
+
+while (my $net = $sth->fetchrow_array()) {
+	print $fh $net."\n";
+}
+
+# pull out all IPs that are pemabanned *or* have a ban expiration *after* today
+$sth = $dbh->prepare(q{
+  SELECT INET_NTOA(ip4)
+  FROM ip_blocklist
+  WHERE ban_expiration > NOW()
+     OR permaban = 1;
+});
+$sth->execute();
+
+while (my $ip = $sth->fetchrow_array()) {
+	print $fh $ip."\n";
+}
+
+# close file;
+close $fh or die "$iplist: $!";
+
+# open the ASN file
+open ($fh, ">$asnlist");
+
+# pull out all the ASNs that are permabanned
+$sth = $dbh->prepare(q{
+  SELECT asn
+  FROM asn_blocklist
+  WHERE permaban = 1;
+});
+$sth->execute();
+
+while (my $asn = $sth->fetchrow_array()) {
+	print $fh $asn."\n";
+}
+
+# close the file;
+close $fh or die "$asnlist: $1";
+
+print "Done!\n";
+
+# Close DB connection
+$dbh->disconnect;

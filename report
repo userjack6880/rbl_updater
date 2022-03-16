@@ -1,0 +1,185 @@
+#!/usr/bin/perl
+
+# -----------------------------------------------------------------------------
+#
+# RBL Updater Suite
+# report
+# 2022 - John Bradley (userjack6880)
+#
+# Available at: https://github.com/userjack6880/rbl_updater
+#
+# -----------------------------------------------------------------------------
+#
+# This file is part of the RBL Updater Suite for use with rspamd
+#
+# The RBL Updater Suite is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by the Free 
+# Software Foundation, either version 3 of the License, or (at your option) any
+# later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT 
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more 
+# details.
+#
+# You should have received a copy of the GNU General Public License along with 
+# this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# -----------------------------------------------------------------------------
+
+use strict;
+use warnings;
+
+use Getopt::Std;
+use File::Tail;
+use File::Basename;
+use JSON;
+use LWP::UserAgent;
+use LWP::Protocol::https;
+use DBI;
+
+# basic settings --------------------------------------------------------------
+my %opts = ();
+getopts('i:n:p:', \%opts);
+
+my $ipinput = ($opts{'i'} || '');
+my $netinput = ($opts{'n'} || '');
+my $permaban = ($opts{'p'} || 0);
+
+# usage sub -------------------------------------------------------------------
+sub usage {
+	print "\n".
+	      "\tUsage:\n".
+	      "\t\t./report [OPTIONS]\n".
+	      "\n".
+	      "\tThis script add to the database either an IP address or an IP Range.\n".
+	      "\n".
+	      "\tOptions:\n".
+	      "\t\t-i\t[IPv4 Address]\tAdds a single IP address\n".
+	      "\t\t-n\t[CIDR Notation]\tAdds a CIDR notation network range\n".
+	      "\t\t-p\tMakes either IP address or network range permabanned\n".
+	      "\n";
+}
+
+# load conf file --------------------------------------------------------------
+our ($asnlist,$iplist,$dbname,$dbhost,$dbport,$dbuser,$dbpass,$log,$version);
+my $conffile = 'config.conf';
+
+if (-e $conffile) { $conffile = "./$conffile"; }
+elsif (-e File::Basename::dirname($0)."/$conffile") { $conffile = "./".File::Basename::dirname($0)."/$conffile"; }
+else { usage(); die "Error! Could not read $conffile\n"; }
+
+my $conftest = do $conffile;
+die "$conffile could not be parsed: $@" if $@;
+die "could not do $conffile: $!" if !defined $conftest;
+
+# declare "global" variables --------------------------------------------------
+my $dbh;
+
+# BGP View Queries ------------------------------------------------------------
+sub query_ip {
+	my $ip = shift;
+	my $result;
+
+	my $ua = LWP::UserAgent->new(send_te => 0);
+	$ua->agent("Mozilla/8.0"); # because cloudflare is a bitch
+	my $req = HTTP::Request->new(
+	            GET => "https://api.bgpview.io/ip/$ip",
+	            [
+	              'Content-Type' => "application/json"
+	            ]
+	          );
+	my $res = $ua->request($req);
+	my $data = decode_json($res->decoded_content);
+	$result->{prefix} = $data->{data}{prefixes}[0]{prefix};
+	$result->{asn} = $data->{data}{prefixes}[0]{asn}{asn};
+
+	return $result;
+}
+
+sub query_range {
+	my $range = shift;
+	my $result;
+
+	my $ua = LWP::UserAgent->new(send_te => 0);
+	$ua->agent("Mozilla/8.0"); # because cloudflare is a bitch
+	my $req = HTTP::Request->new(
+	            GET => "https://api.bgpview.io/prefix/$range",
+	            [
+	              'Content-Type' => "application/json"
+	            ]
+	          );
+	my $res = $ua->request($req);
+	my $data = decode_json($res->decoded_content);
+	$result = $data->{data}{asns}[0]{asn};
+
+	return $result;
+}
+
+# DB Related Subroutines ------------------------------------------------------
+sub db_keepalive {
+	if(!$dbh->ping) {
+		$dbh = DBI->connect_cached(
+             "DBI:mysql:database=$dbname;host=$dbhost;port=$dbport",
+             $dbuser,
+             $dbpass
+           ) or die "Could not connect to database!\n";
+	}
+}
+
+sub add_net {
+	my $range = shift;
+	db_keepalive();
+	my $asn = query_range($range);
+
+	my $sth = $dbh->prepare(q{
+	  INSERT INTO ipnet_blocklist (ip4_net, asn, infractions, infractions_type, ban_expiration, permaban)
+		VALUES (?,?,1,0,DATE_ADD(NOW(), INTERVAL 1 DAY),?)
+		ON DUPLICATE KEY UPDATE infractions = infractions +1,
+	                          ban_expiration = DATE_ADD(NOW(), INTERVAL 1 DAY),
+	                          infractions_type = 0;
+	});
+	$sth->execute($range,$asn,$permaban);
+}
+
+sub add_ip {
+	my $ip = shift;
+	db_keepalive();
+
+	my $range = query_ip($ip);
+
+	my $sth = $dbh->prepare(q{
+	  INSERT INTO ip_blocklist (ip4, ip4_net, infractions, infractions_type, ban_expiration, permaban)
+	  VALUES (INET_ATON(?),?,1,0,DATE_ADD(NOW(), INTERVAL 1 DAY),?)
+	  ON DUPLICATE KEY UPDATE infractions = infractions + 1,
+	                          ban_expiration = DATE_ADD(NOW(), INTERVAL 1 DAY),
+	                          infractions_type = 0;
+	});
+	$sth->execute($ip,$range->{prefix},$permaban);
+}
+
+# Begin Main Code -------------------------------------------------------------
+
+print "\nRBL Updater Suite v.$version\n".
+      "\tReporter\n\n";
+
+# Open DB connection
+$dbh = DBI->connect(
+            "DBI:mysql:database=$dbname;host=$dbhost;port=$dbport",
+            $dbuser,
+            $dbpass
+          ) or die "Could not connect to database!\n";
+
+if ($ipinput ne '') {
+	print "Inputting IP $ipinput\n";
+	add_ip($ipinput);
+}
+elsif ($netinput ne '') {
+	print "Inputting Net $netinput\n";
+	add_net($netinput);
+}
+else {
+	usage();
+}
+
+$dbh->disconnect;
