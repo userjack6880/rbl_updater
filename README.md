@@ -100,7 +100,11 @@ Install anywhere you want. Probably will want to run it as a privleged user, or 
 ## 0-α1.2
 - Fixed log regex for monitor script.
 - Added a case for where punishment is issued for a prefix has a ton of bad IPs that do not have their ban expirations timeout.
+- Fixed DB query column typo.
+- When an IP network range is added, on duplicate key it now adds ban expiration.
+- Added variation of `spam` to the keywords monitor looks for.
 - Fixed issue where script couldn't find the config file.
+- Fixed bug where script would die if it encountered a JSON error when doing a BGP Info Query.
 
 # Planned Features
 
