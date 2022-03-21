@@ -4,9 +4,35 @@ This is the RBL Updater Suite version 0 alpha-1.2 (0-α1.2) by John Bradley (joh
 
 This software is extremely experimental and may cause collateral damage on deliverability. USE AT YOUR OWN RISK.
 
+# Suite Components
+
+## `monitor`
+
+This is the script that monitors your mail log for a `NOQUEUE: reject` message or a `milter-reject` message containing additional keywords `BLOCKLIST`, `spam`, or `Spam`. When it does that, it flags the IP address associated with the message, and performs a number of actions outlined under the Principle of Operation section of this Readme.
+
+## `report`
+
+This script is used to manually report an IP address or range. Regardless of previous infractions, it will always issue a 1-day ban based on the current time. This can inadvertantly shorten a ban if you are not careful.
+
+```
+        Usage:
+                ./report [OPTIONS]
+
+        This script add to the database either an IP address or an IP Range.
+
+        Options:
+                -i      [IPv4 Address]  Adds a single IP address
+                -n      [CIDR Notation] Adds a CIDR notation network range
+                -p      Makes either IP address or network range permabanned
+```
+
+## `generate_list`
+
+This script will create a plaintext file with the IP addresses and network ranges, deliminated by newlines, at the location specified in the config file.
+
 # Principle of Operation
 
-The script assumes that you have configured postfix in a way that it blocks misconfigured hosts attempting to connect to your mail server, already is blocking messages, and has rspamd installed and running.
+The `monitor` script assumes that you have configured postfix in a way that it blocks misconfigured hosts attempting to connect to your mail server, already is blocking messages, and has rspamd installed and running.
 
 Whenever an IP address gets blocked in the mail logs, the monitor script will flag the IP and increase the time it is banned. The ban gets more agressive the more the IP is flagged, ultimately ended up in prefix and asn bans as the issue worsens.
 
@@ -23,7 +49,7 @@ For network prefixes, infractions and bans are given based on the number of indi
 - On the third IP permaban, the prefix receives a 1 day ban.
 - Every additional IP permaban after the third results in a 1 week ban.
 - On the twenty-fifth (25th) IP permaban, the prefix is permanently banned.
-- Exception: if more than 10 IP addresses within a prefix have concurrent temporary bans at the same time, the prefix is issued a ban.
+- Exception: if more than 5 IP addresses within a prefix have concurrent temporary bans at the same time, the prefix is issued a ban.
 
 Bans are cumulative, and infractions are permanently recorded.
 
@@ -68,11 +94,13 @@ Untested on any other OS, but it's highly recommended on a linux machine to inst
 ## Scripts
 
 Install anywhere you want. Probably will want to run it as a privleged user, or at least one that can access the files specified in the config. Be sure to fill out the config file and remove the .pub extension.
+
 # Latest Changes
 
 ## 0-α1.2
 - Fixed log regex for monitor script.
 - Added a case for where punishment is issued for a prefix has a ton of bad IPs that do not have their ban expirations timeout.
+- Fixed issue where script couldn't find the config file.
 
 # Planned Features
 
