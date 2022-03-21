@@ -54,11 +54,10 @@ sub usage {
 our ($asnlist,$iplist,$dbname,$dbhost,$dbport,$dbuser,$dbpass,$log,$version);
 my $conffile = 'config.conf';
 
-if (-e $conffile) { $conffile = "./$conffile"; }
-elsif (-e File::Basename::dirname($0)."/$conffile") { $conffile = File::Basename::dirname($0)."/$conffile"; }
-else { usage(); die "Error! Could not read $conffile\n"; }
-
 if (substr($conffile,0,1) ne '/' and substr($conffile,0,1) ne '.') { $conffile = "./$conffile"; }
+
+if (-e File::Basename::dirname($0)."/$conffile") { $conffile = File::Basename::dirname($0)."/$conffile"; }
+unless (-e $conffile) { usage(); die "Error! Could not read $conffile\n"; }
 
 my $conftest = do $conffile;
 die "$conffile could not be parsed: $@" if $@;
@@ -81,6 +80,11 @@ sub query_ip {
 	            ]
 	          );
 	my $res = $ua->request($req);
+	# return error if JSON isn't returned
+	if (substr($res->decoded_content,0,1) eq '<') {
+		$result->{error} = 1;
+		return $result;
+	}
 	my $data = decode_json($res->decoded_content);
 	$result->{prefix} = $data->{data}{prefixes}[0]{prefix};
 	$result->{prefix} = $data->{data}{rir_allocation}{prefix} if not defined($result->{prefix});
@@ -104,6 +108,10 @@ sub query_asn {
 	            ]
 	          );
 	my $res = $ua->request($req);
+	if (substr($res->decoded_content,0,1) eq '<') {
+		$result[0] = 1;
+		return @result;
+	}
 	my $data = decode_json($res->decoded_content);
 	my $itr = 0;
 	foreach my $entry (@{$data->{data}{ipv4_prefixes}}) {
@@ -153,6 +161,10 @@ sub add_asn {
 			print "no ASN info!\n";
 			return;
 		}
+		if ($ranges[0] == 1) {
+			print "JSON error\n";
+			return;
+		}
 		else {
 			print "AS$asn has ".scalar(@ranges)." ranges\n";
 
@@ -184,6 +196,10 @@ sub add_asn {
 			my @ranges = query_asn($asn);
 			if (!@ranges) {
 				print "no ASN info!\n";
+				return;
+			}
+			if ($ranges[0] == 1) {
+				print "JSON error\n";
 				return;
 			}
 			# we need to increase the infraction count, or permaban if infraction count is exceeded
@@ -257,7 +273,11 @@ sub add_net {
 	my $sth = $dbh->prepare(q{
 	  INSERT INTO ipnet_blocklist (ip4_net, asn, infractions, infractions_type, ban_expiration, permaban)
 		VALUES (?,?,1,1,NOW(),0)
-		ON DUPLICATE KEY UPDATE infractions = infractions = + 1;
+		ON DUPLICATE KEY UPDATE infractions = infractions + 1,
+	                          ban_expiration = CASE
+	                            WHEN ban_expiration < NOW() THEN DATE_ADD(NOW(), INTERVAL 1 HOUR)
+	                            WHEN ban_expiration >= NOW() THEN DATE_ADD(ban_expiration, INTERVAL 1 HOUR)
+	                          END;
 	});
 	$sth->execute($prefix,$asn);
 
@@ -287,7 +307,7 @@ sub add_net {
 			    WHEN ban_expiration < NOW() THEN DATE_ADD(NOW(), INTERVAL 1 DAY)
 			    WHEN ban_expiration >= NOW() THEN DATE_ADD(ban_expiration, INTERVAL 1 DAY)
 			  END
-			  where ip4net = ?;
+			  where ip4_net = ?;
 			});
 			print "$prefix has recieved a 1 day ban\n";
 		}
@@ -298,7 +318,7 @@ sub add_net {
 			    WHEN ban_expiration < NOW() THEN DATE_ADD(NOW(), INTERVAL 1 WEEK)
 			    WHEN ban_expiration >= NOW() THEN DATE_ADD(ban_expiration, INTERVAL 1 WEEK)
 			  END
-			  where ip4net = ?;
+			  where ip4_net = ?;
 			});
 			print "$prefix has recieved a 1 week ban\n";
 		}
@@ -312,6 +332,10 @@ sub add_ip {
 	db_keepalive();
 
 	my $range = query_ip($ip);
+	if (defined $range->{error}) {
+		print "JSON error\n";
+		return;
+	}
 
 	# simple increment, create if it doesn't exist
 	print "FLAGGED: $ip\n";
@@ -326,6 +350,14 @@ sub add_ip {
 	my $infractions = $dbh->selectrow_array("SELECT infractions FROM ip_blocklist WHERE ip4 = INET_ATON('$ip');");
 
 	print "\t$infractions infractions\n";
+
+	# check to see if there are more than 5 address in the net that are currently banned... if so, then more severely punish the prefix
+	# does not penalize for permabanned IPs
+	if ($dbh->selectrow_array("SELECT COUNT(*) FROM ip_blocklist WHERE ip4_net = '$range->{prefix}' AND ban_expiration > NOW();") > 5) {
+		print "\tUnusually high infraction from net $range->{prefix}. Punishing\n";
+
+		add_net($range);
+	}
 
 	if ($infractions > 3) {
 		print "$ip is now permanently banned!\n";
@@ -412,7 +444,8 @@ while (defined(my $line=$file->read)) {
 	if ($line =~ /^.+milter-reject.+/) {
 		# this will only penalize IPs that exit on the current blocklist or legit spam
 		if ($line =~ /^.+BLOCKLIST.+/ || 
-		    $line =~ /^.+spam.+/ ) {
+		    $line =~ /^.+spam.+/ ||
+		    $line =~ /^.+Spam.+/ ) {
 			if ($line =~ m/^.+\[(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}).+/) {
 				add_ip($1);
 			}
