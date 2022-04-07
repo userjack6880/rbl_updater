@@ -100,21 +100,26 @@ out the config file and remove the .pub extension.
 **rspamd Blocklists**
 ```
 $asnlist = '/etc/rspamd/local.d/maps/blockasn.map';
-$iplist  = '/etc/rspamd/local.d/maps/blockip.map';```
+$iplist  = '/etc/rspamd/local.d/maps/blockip.map';
+```
 
 `$asnlist` is where your rspamd will reference the blocklist map for ASNs. `$iplist` is the same, but for individual IP addresses and IP networks. All IPs are in IPv4 format.
 
 **Mail Log Settings**
-```$log     = '/var/log/mail.log';```
+```
+$log     = '/var/log/mail.log';
+```
 
 This is where your MTA stores mail logs. This needs to be readable by the user running the script, like the rspamd blocklists.
 
 **Database Settings**
-```$dbname  = '';
+```
+$dbname  = '';
 $dbhost  = '';
 $dbport  = 3306;
 $dbuser  = '';
-$dbpass  = '';```
+$dbpass  = '';
+```
 
 # Latest Changes
 
