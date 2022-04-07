@@ -342,8 +342,8 @@ sub add_ip {
 	# first check if we can even process the ip, if not, throw it on the queue
 	my $range = query_ip($ip);
 	if (defined $range->{error}) {
-		print "JSON error. Saving $ip in queue!\tQueue has ".scalar(@ipqueue)." IPs\n";
 		push(@ipqueue, $ip);
+		print "JSON error. Saving $ip in queue!\tQueue has ".scalar(@ipqueue)." IPs\n";
 		return;
 	}
 
