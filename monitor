@@ -54,7 +54,8 @@ sub usage {
 }
 
 # load config file ------------------------------------------------------------
-our ($asnlist,$iplist,$dbname,$dbhost,$dbport,$dbuser,$dbpass,$log,$version);
+our ($asnlist,$iplist,$dbname,$dbhost,$dbport,$dbuser,$dbpass,$log);
+my @ipqueue;
 my $conffile = 'config.conf';
 
 if (substr($conffile,0,1) ne '/' and substr($conffile,0,1) ne '.') { $conffile = "./$conffile"; }
@@ -146,6 +147,8 @@ sub add_asn {
 	#   scores
 	# - when threshold is reached (>50%), ASN gets banned for increasing amounts of time
 
+	# when the recusive call returns, we can continue;
+
 	print "FLAGGED: AS$asn\n";
 
 	# check if the ASN has been recorded
@@ -161,11 +164,11 @@ sub add_asn {
 		# asn query now...
 		my @ranges = query_asn($asn);
 		if (!@ranges) {
-			print "no ASN info!\n";
+			print "no ASN info! skipping\n";
 			return;
 		}
 		if ($ranges[0] == 1) {
-			print "JSON error\n";
+			print "JSON error. Skipping\n";
 			return;
 		}
 		else {
@@ -334,14 +337,25 @@ sub add_ip {
 	my $ip = shift;
 	db_keepalive();
 
+	print localtime().": ";
+
+	# first check if we can even process the ip, if not, throw it on the queue
 	my $range = query_ip($ip);
 	if (defined $range->{error}) {
-		print "JSON error\n";
+		print "JSON error. Saving $ip in queue!\tQueue has ".scalar(@ipqueue)." IPs\n";
+		push(@ipqueue, $ip);
 		return;
 	}
 
-	# simple increment, create if it doesn't exist
+	# next we should process through queued IPs
+	my $queued = pop(@ipqueue);
+
+	add_ip($queued) if defined($queued);
+
+	# now we process the IP we just got
 	print "FLAGGED: $ip\n";
+
+	# simple increment, create if it doesn't exist
 	my $sth = $dbh->prepare(q{
 	  INSERT INTO ip_blocklist (ip4, ip4_net, infractions, infractions_type, ban_expiration, permaban)
 	  VALUES (INET_ATON(?),?,1,1,NOW(),0)

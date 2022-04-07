@@ -43,11 +43,12 @@ my $version = '0 alpha-1.3';
 
 # basic settings --------------------------------------------------------------
 my %opts = ();
-getopts('i:n:p:', \%opts);
+getopts('i:n:pd', \%opts);
 
 my $ipinput = ($opts{'i'} || '');
 my $netinput = ($opts{'n'} || '');
 my $permaban = ($opts{'p'} || 0);
+my $delete = ($opts{'d'} || 0);
 
 # usage sub -------------------------------------------------------------------
 sub usage {
@@ -65,7 +66,7 @@ sub usage {
 }
 
 # load conf file --------------------------------------------------------------
-our ($asnlist,$iplist,$dbname,$dbhost,$dbport,$dbuser,$dbpass,$log,$version);
+our ($asnlist,$iplist,$dbname,$dbhost,$dbport,$dbuser,$dbpass,$log);
 my $conffile = 'config.conf';
 
 if (substr($conffile,0,1) ne '/' and substr($conffile,0,1) ne '.') { $conffile = "./$conffile"; }
@@ -94,6 +95,10 @@ sub query_ip {
 	            ]
 	          );
 	my $res = $ua->request($req);
+  if (substr($res->decoded_content,0,1) eq '<') {
+    $result = 1;
+    return $result;
+  }
 	my $data = decode_json($res->decoded_content);
 	$result->{prefix} = $data->{data}{prefixes}[0]{prefix};
 	$result->{asn} = $data->{data}{prefixes}[0]{asn}{asn};
@@ -114,6 +119,10 @@ sub query_range {
 	            ]
 	          );
 	my $res = $ua->request($req);
+  if (substr($res->decoded_content,0,1) eq '<') {
+    $result = 1;
+    return $result;
+	}
 	my $data = decode_json($res->decoded_content);
 	$result = $data->{data}{asns}[0]{asn};
 
@@ -135,15 +144,30 @@ sub add_net {
 	my $range = shift;
 	db_keepalive();
 	my $asn = query_range($range);
+	if ($asn == 1) {
+		print "JSON Error, Null ASN\n";
+		my $sth = $dbh->prepare(q{
+		  INSERT INTO ipnet_blocklist (ip4_net, infractions, infractions_type, ban_expiration, permaban)
+			VALUES (?,1,0,DATE_ADD(NOW(), INTERVAL 1 DAY),?)
+			ON DUPLICATE KEY UPDATE infractions = infractions +1,
+		                          ban_expiration = DATE_ADD(NOW(), INTERVAL 1 DAY),
+		                          infractions_type = 0;
+		});
+		$sth->execute($range,$permaban);
+	}
 
-	my $sth = $dbh->prepare(q{
-	  INSERT INTO ipnet_blocklist (ip4_net, asn, infractions, infractions_type, ban_expiration, permaban)
-		VALUES (?,?,1,0,DATE_ADD(NOW(), INTERVAL 1 DAY),?)
-		ON DUPLICATE KEY UPDATE infractions = infractions +1,
-	                          ban_expiration = DATE_ADD(NOW(), INTERVAL 1 DAY),
-	                          infractions_type = 0;
-	});
-	$sth->execute($range,$asn,$permaban);
+	else {
+		my $sth = $dbh->prepare(q{
+		  INSERT INTO ipnet_blocklist (ip4_net, asn, infractions, infractions_type, ban_expiration, permaban)
+			VALUES (?,?,1,0,DATE_ADD(NOW(), INTERVAL 1 DAY),?)
+			ON DUPLICATE KEY UPDATE infractions = infractions +1,
+		                          ban_expiration = DATE_ADD(NOW(), INTERVAL 1 DAY),
+		                          infractions_type = 0;
+		});
+		$sth->execute($range,$asn,$permaban);
+	}
+
+	print "added.\n";
 }
 
 sub add_ip {
@@ -151,15 +175,56 @@ sub add_ip {
 	db_keepalive();
 
 	my $range = query_ip($ip);
+	if ($range == 1) {
+		print "JSON Error, Null Range, Guessing\n";
+		my @splitip = split(/\./, $ip);
+		my $prefix = $splitip[0].".".$splitip[1].".0.0/24";
+		my $sth = $dbh->prepare(q{
+		  INSERT INTO ip_blocklist (ip4, ip4_net, infractions, infractions_type, ban_expiration, permaban)
+		  VALUES (INET_ATON(?),?,1,0,DATE_ADD(NOW(), INTERVAL 1 DAY),?)
+		  ON DUPLICATE KEY UPDATE infractions = infractions + 1,
+		                          ban_expiration = DATE_ADD(NOW(), INTERVAL 1 DAY),
+		                          infractions_type = 0;
+		});
+		$sth->execute($ip,$prefix,$permaban);
+	}	
+
+	else {
+		my $sth = $dbh->prepare(q{
+		  INSERT INTO ip_blocklist (ip4, ip4_net, infractions, infractions_type, ban_expiration, permaban)
+		  VALUES (INET_ATON(?),?,1,0,DATE_ADD(NOW(), INTERVAL 1 DAY),?)
+		  ON DUPLICATE KEY UPDATE infractions = infractions + 1,
+		                          ban_expiration = DATE_ADD(NOW(), INTERVAL 1 DAY),
+		                          infractions_type = 0;
+		});
+		$sth->execute($ip,$range->{prefix},$permaban);
+	}
+
+	print "added.\n";
+}
+
+sub del_net {
+	my $range = shift;
+	db_keepalive();
 
 	my $sth = $dbh->prepare(q{
-	  INSERT INTO ip_blocklist (ip4, ip4_net, infractions, infractions_type, ban_expiration, permaban)
-	  VALUES (INET_ATON(?),?,1,0,DATE_ADD(NOW(), INTERVAL 1 DAY),?)
-	  ON DUPLICATE KEY UPDATE infractions = infractions + 1,
-	                          ban_expiration = DATE_ADD(NOW(), INTERVAL 1 DAY),
-	                          infractions_type = 0;
+	  DELETE FROM ipnet_blocklist WHERE ip4_net = ?;
 	});
-	$sth->execute($ip,$range->{prefix},$permaban);
+	$sth->execute($range);
+
+	print "deleted.\n";
+}
+
+sub del_ip {
+	my $ip = shift;
+	db_keepalive();
+
+	my $sth = $dbh->prepare(q{
+	  DELETE FROM ip_blocklist WHERE ip4 = INET_ATON(?);
+	});
+	$sth->execute($ip);
+
+	print "deleted.\n";
 }
 
 # Begin Main Code -------------------------------------------------------------
@@ -175,12 +240,22 @@ $dbh = DBI->connect(
           ) or die "Could not connect to database!\n";
 
 if ($ipinput ne '') {
-	print "Inputting IP $ipinput\n";
-	add_ip($ipinput);
+	print "IP $ipinput... ";
+	if ($delete == 0) {
+		add_ip($ipinput);
+	}
+	else {
+		del_ip($ipinput);
+	}
 }
 elsif ($netinput ne '') {
-	print "Inputting Net $netinput\n";
-	add_net($netinput);
+	print "Net $netinput... ";
+	if ($delete == 0) {
+		add_net($netinput);
+	}
+	else {
+		del_net($netinput);
+	}
 }
 else {
 	usage();

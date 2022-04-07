@@ -24,6 +24,7 @@ This script is used to manually report an IP address or range. Regardless of pre
                 -i      [IPv4 Address]  Adds a single IP address
                 -n      [CIDR Notation] Adds a CIDR notation network range
                 -p      Makes either IP address or network range permabanned
+                -d      Delete either IP address or network range provided.
 ```
 
 ## `generate_list`
@@ -132,6 +133,9 @@ $dbpass  = '';
 - Updated documentation.
 - Removed versioning from config.
 - Added `list_bans`.
+- Graceful JSON failure in `report`.
+- Added ability to delete entries from `report`.
+- Added IP queue in `monitor` for JSON failure handling.
 
 # Tested System Configuration
 
