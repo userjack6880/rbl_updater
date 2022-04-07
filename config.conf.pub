@@ -13,6 +13,3 @@ $dbhost  = '';
 $dbport  = 3306;
 $dbuser  = '';
 $dbpass  = '';
-
-# version number
-$version = '0 alpha-1.2';
