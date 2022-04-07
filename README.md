@@ -1,6 +1,6 @@
 # RBL Updater Suite
 
-This is the RBL Updater Suite version 0 alpha-1.2 (0-α1.2) by John Bradley (john@systemanomaly.com). The RBL Updater Suite is an Open Source suite of tools to be used in conjunction with rpsamd to help autogenerate a local realtime block list (RBL) not reliant on any external lists, such as spamhaus and the like.
+This is the RBL Updater Suite version 0 alpha-1.3 (0-α1.3) by John Bradley (john@systemanomaly.com). The RBL Updater Suite is an Open Source suite of tools to be used in conjunction with rpsamd to help autogenerate a local realtime block list (RBL) not reliant on any external lists, such as spamhaus and the like.
 
 This software is extremely experimental and may cause collateral damage on deliverability. USE AT YOUR OWN RISK.
 
@@ -98,22 +98,28 @@ out the config file and remove the .pub extension.
 
 # Configuration Options
 **rspamd Blocklists**
-```$asnlist = '/etc/rspamd/local.d/maps/blockasn.map';
-$iplist  = '/etc/rspamd/local.d/maps/blockip.map';```
+```
+$asnlist = '/etc/rspamd/local.d/maps/blockasn.map';
+$iplist  = '/etc/rspamd/local.d/maps/blockip.map';
+```
 
 `$asnlist` is where your rspamd will reference the blocklist map for ASNs. `$iplist` is the same, but for individual IP addresses and IP networks. All IPs are in IPv4 format.
 
 **Mail Log Settings**
-```$log     = '/var/log/mail.log';```
+```
+$log     = '/var/log/mail.log';
+```
 
 This is where your MTA stores mail logs. This needs to be readable by the user running the script, like the rspamd blocklists.
 
 **Database Settings**
-```$dbname  = '';
+```
+$dbname  = '';
 $dbhost  = '';
 $dbport  = 3306;
 $dbuser  = '';
-$dbpass  = '';```
+$dbpass  = '';
+```
 
 # Latest Changes
 
