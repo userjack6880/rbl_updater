@@ -30,6 +30,10 @@ This script is used to manually report an IP address or range. Regardless of pre
 
 This script will create a plaintext file with the IP addresses and network ranges, deliminated by newlines, at the location specified in the config file.
 
+## `list_bans`
+
+This script will list all current bans and all ASN entries.
+
 # Principle of Operation
 
 The `monitor` script assumes that you have configured postfix in a way that it blocks misconfigured hosts attempting to connect to your mail server, already is blocking messages, and has rspamd installed and running.
@@ -78,6 +82,7 @@ This is agressive, and possibly hostile, but for the most part, it should never 
 - JSON
 - LWP::UserAgent
 - LWP::Protocol::https
+- Text::Table
 
 # Installation
 
