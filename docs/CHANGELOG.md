@@ -3,6 +3,7 @@
 ## 0-α1.3
 - Updated documentation.
 - Removed versioning from config.
+- Added `list_bans`.
 
 ## 0-α1.2
 - Fixed log regex for monitor script.

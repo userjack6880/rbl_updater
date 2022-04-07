@@ -126,6 +126,7 @@ $dbpass  = '';
 ## 0-α1.3
 - Updated documentation.
 - Removed versioning from config.
+- Added `list_bans`.
 
 # Tested System Configuration
 
