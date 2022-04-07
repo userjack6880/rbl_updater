@@ -1,5 +1,9 @@
 # Changelog
 
+## 0-α1.3
+- Updated documentation.
+- Removed versioning from config.
+
 ## 0-α1.2
 - Fixed log regex for monitor script.
 - Added a case for where punishment is issued for a prefix has a ton of bad IPs that do not have their ban expirations timeout.

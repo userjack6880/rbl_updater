@@ -64,13 +64,13 @@ Bans are cumulative, and infractions are permanently recorded.
 
 This is agressive, and possibly hostile, but for the most part, it should never get as far as an ASN ban.
 
-# Dependencies
+# Requirements
 
-## Required
 - Perl 5 (Tested 5.32.1)
 - mySQL 15.1 or Equivalent (Tested MariaDB 10.5.12)
 
-Perl Packages Used
+# Dependencies
+
 - DBI
 - File::Tail
 - File::Basename
@@ -93,25 +93,64 @@ Untested on any other OS, but it's highly recommended on a linux machine to inst
 
 ## Scripts
 
-Install anywhere you want. Probably will want to run it as a privleged user, or at least one that can access the files specified in the config. Be sure to fill out the config file and remove the .pub extension.
+Install anywhere you want. Probably will want to run it as a privleged user, or at least one that can access the files specified in the config. Be sure to fill 
+out the config file and remove the .pub extension.
+
+# Configuration Options
+**rspamd Blocklists**
+```$asnlist = '/etc/rspamd/local.d/maps/blockasn.map';
+$iplist  = '/etc/rspamd/local.d/maps/blockip.map';```
+
+`$asnlist` is where your rspamd will reference the blocklist map for ASNs. `$iplist` is the same, but for individual IP addresses and IP networks. All IPs are in IPv4 format.
+
+**Mail Log Settings**
+```$log     = '/var/log/mail.log';```
+
+This is where your MTA stores mail logs. This needs to be readable by the user running the script, like the rspamd blocklists.
+
+**Database Settings**
+```$dbname  = '';
+$dbhost  = '';
+$dbport  = 3306;
+$dbuser  = '';
+$dbpass  = '';```
 
 # Latest Changes
 
-## 0-α1.2
-- Fixed log regex for monitor script.
-- Added a case for where punishment is issued for a prefix has a ton of bad IPs that do not have their ban expirations timeout.
-- Fixed DB query column typo.
-- When an IP network range is added, on duplicate key it now adds ban expiration.
-- Added variation of `spam` to the keywords monitor looks for.
-- Fixed issue where script couldn't find the config file.
-- Fixed bug where script would die if it encountered a JSON error when doing a BGP Info Query.
+## 0-α1.3
+- Updated documentation.
+- Removed versioning from config.
 
-# Planned Features
+# Tested System Configuration
 
-- Make Monitor a Deamon with an install script.
-- Create an automated install script...
-- Add the ability to remove bans/infractions (you can do that within mySQL if you need to right now).
+| OS        | rspamd | MTA           | SQL             | Perl   |
+| --------- | ------ | ------------- | --------------- | ------ |
+| Debian 11 | 3.1    | Postfix 3.5.6 | MariaDB 10.5.12 | 5.32.1 |
+
+# Release Cycle and Versioning
+
+This project regular release cycle is not yet determined. Versioning is under the Anomaly Versioning Scheme (2022), as outlined in `VERSIONING` under `docs`.
+
+# Support
+
+| Version                       | Support Level    | Released       | End of Support | End of Life   |
+| ----------------------------- | ---------------- | -------------- | -------------- | ------------- |
+| Version 0 Alpha 1.3 (current) | Full Support     | TBD            | TBD            | TBD           |
+| Version 0 Alpha 1.2           | Critical Support | 20 March 2022  | 6 April 2022   | TBD           |
+| Version 0 Alpha 1.1 or Older  | End of Life      | 16 March 2022  | 20 March 2022  | 6 April 2022  |
+
+# Contributing
+
+Public contributions are encouraged. Please review `CONTRIBUTING` under `docs` for contributing procedures. Additionally, please take a look at our `CODE_OF_CONDUCT`. By participating in this project you agree to abide by the Code of Conduct.
+
+# Contributors
+
+Primary Contributors
+
+- John Bradley - Initial Work
+
+Thanks to [all who contributed](https://github.com/userjack6880/rbl_updater/graphs/contributors) and [have given feedback](https://github.com/userjack6880/rbl_updater/issues?q=is%3Aissue).
 
 # License
 
-The RBL Updater Suite is released under GNU GPLv3. See LICENSE.
+The RBL Updater Suite is released under GNU GPLv3. See `LICENSE`.
