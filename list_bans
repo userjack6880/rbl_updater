@@ -82,64 +82,90 @@ $dbh = DBI->connect(
 
 # pull out all IPs that are pemabanned *or* have a ban expiration *after* today
 my $sth = $dbh->prepare(q{
-  SELECT INET_NTOA(ip4), ip4_net, infractions, ban_expiration, permaban
+  SELECT INET_NTOA(ip4), ip4_net, provider, infractions, ban_expiration, permaban
   FROM ip_blocklist
-  WHERE ban_expiration > NOW()
-     OR permaban = 1;
+  WHERE ip4_net NOT IN (SELECT ip4_net FROM ipnet_blocklist WHERE permaban = 1)
+    AND (   ban_expiration > NOW()
+         OR permaban = 1 )
+  ORDER BY ban_expiration DESC,
+           infractions DESC,
+           permaban DESC;
 });
 $sth->execute();
 
 print "\nIP Bans\n";
 
-my $ip_table = Text::Table->new("| IP", "| Network", "| Infractions", "| Ban Expiration", "| Permaban", "|");      
+my $ip_table = Text::Table->new("| IP", "| Network", "| Provider", "| Infractions", "| Ban Expiration", "| Permaban", "|");      
 
 while (my @row = $sth->fetchrow_array()) {
 	my $perma = 'No';
-	$perma = 'Yes' if $row[4] == 1;
+	my $provider;
+	$perma = 'Yes' if $row[5] == 1;
+	if (defined $row[2]) {
+		$provider = $row[2];
+	}
+	else {
+		$provider = 'Unknown';
+	}
 
-	$ip_table->load(["| ".$row[0], "| ".$row[1], "| ".$row[2], "| ".$row[3], "| ".$perma, "|"]);
+	$ip_table->load(["| ".$row[0], "| ".$row[1], "| ".$provider, "| ".$row[3], "| ".$row[4], "| ".$perma, "|"]);
 }
 
 print $ip_table;
 
 # pull out all the Perfixes that are permabanned *or* have a ban expiration *after* today
 $sth = $dbh->prepare(q{
-  SELECT ip4_net, asn, infractions, ban_expiration, permaban
+  SELECT ip4_net, asn, provider, infractions, ban_expiration, permaban
   FROM ipnet_blocklist
-  WHERE ban_expiration > NOW()
-     OR permaban = 1;
+  WHERE asn NOT IN (SELECT asn FROM asn_blocklist WHERE permaban = 1)
+    AND (   ban_expiration > NOW()
+         OR permaban = 1 );
 });
 $sth->execute();
 
 print "\nNetwork Bans\n";
 
-my $net_table = Text::Table->new("| Network", "| ASN", "| Infractions", "| Ban Expiration", "| Permaban", "|");
+my $net_table = Text::Table->new("| Network", "| ASN", "| Provider", "| Infractions", "| Ban Expiration", "| Permaban", "|");
 
 while (my @row = $sth->fetchrow_array()) {
 	my $perma = 'No';
-	$perma = 'Yes' if $row[4] == 1;
+	my $provider;
+	$perma = 'Yes' if $row[5] == 1;
+	if (defined $row[2]) {
+		$provider = $row[2];
+	}
+	else {
+		$provider = 'Unknown';
+	}
 
-	$net_table->load(["| ".$row[0], "| ".$row[1], "| ".$row[2], "| ".$row[3], "| ".$perma, "|"]);
+	$net_table->load(["| ".$row[0], "| ".$row[1], "| ".$provider, "| ".$row[3], "| ".$row[4], "| ".$perma, "|"]);
 }
 
 print $net_table;
 
 # pull out all the ASNs that are permabanned
 $sth = $dbh->prepare(q{
-  SELECT asn, blocked_ranges, total_ranges, infractions, permaban
+  SELECT asn, provider, blocked_ranges, total_ranges, infractions, permaban
   FROM asn_blocklist;
 });
 $sth->execute();
 
 print "\nASN Bans\n";
 
-my $asn_table = Text::Table->new("| ASN", "| Blocked Ranges", "| Total Ranges", "| Infractions", "| Permaban", "|");
+my $asn_table = Text::Table->new("| ASN", "| Provider", "| Blocked Ranges", "| Total Ranges", "| Infractions", "| Permaban", "|");
 
 while (my @row = $sth->fetchrow_array()) {
 	my $perma = 'No';
-	$perma = 'Yes' if $row[4] == 1;
+	my $provider;
+	$perma = 'Yes' if $row[5] == 1;
+	if (defined $row[1]) {
+		$provider = $row[1];
+	}
+	else {
+		$provider = 'Unknown';
+	}
 
-	$asn_table->load(["| ".$row[0], "| ".$row[1], "| ".$row[2], "| ".$row[3], "| ".$perma, "|"]);
+	$asn_table->load(["| ".$row[0], "| ".$provider, "| ".$row[2], "| ".$row[3], "| ".$row[4], "| ".$perma, "|"]);
 }
 
 print $asn_table;

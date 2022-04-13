@@ -3,7 +3,7 @@
 # -----------------------------------------------------------------------------
 #
 # RBL Updater Suite
-# report
+# update_asn_info 
 # 2022 - John Bradley (userjack6880)
 #
 # Available at: https://github.com/userjack6880/rbl_updater
@@ -42,26 +42,12 @@ use DBI;
 my $version = '0 alpha-1.3';
 
 # basic settings --------------------------------------------------------------
-my %opts = ();
-getopts('i:n:pd', \%opts);
-
-my $ipinput = ($opts{'i'} || '');
-my $netinput = ($opts{'n'} || '');
-my $permaban = ($opts{'p'} || 0);
-my $delete = ($opts{'d'} || 0);
 
 # usage sub -------------------------------------------------------------------
 sub usage {
 	print "\n".
 	      "\tUsage:\n".
-	      "\t\t./report [OPTIONS]\n".
-	      "\n".
-	      "\tThis script add to the database either an IP address or an IP Range.\n".
-	      "\n".
-	      "\tOptions:\n".
-	      "\t\t-i\t[IPv4 Address]\tAdds a single IP address\n".
-	      "\t\t-n\t[CIDR Notation]\tAdds a CIDR notation network range\n".
-	      "\t\t-p\tMakes either IP address or network range permabanned\n".
+	      "\tThis script attempts to recitfy updated database configs where ASN and Provider are NULL\n".
 	      "\n";
 }
 
@@ -104,7 +90,7 @@ sub query_ip {
 	$result->{prefix}   = $data->{data}{prefixes}[0]{prefix} if not defined($result->{prefix});
 	$result->{asn}      = $data->{data}{prefixes}[0]{asn}{asn};
 	$result->{provider} = $data->{data}{prefixes}[0]{asn}{description};
-	$result->{provider} = $data->{data}{prefixes}[0]{description} if not defined($result->{prefix});
+	$result->{provider} = $data->{data}{prefixes}[0]{description} if not defined($result->{provider});
 	$result->{provider} = 'Unknown' if not defined($result->{prefix});
 
 	return $result;
@@ -113,6 +99,8 @@ sub query_ip {
 sub query_range {
 	my $range = shift;
 	my $result;
+
+	print "querying for $range\n";
 
 	my $ua = LWP::UserAgent->new(send_te => 0);
 	$ua->agent("Mozilla/8.0"); # because cloudflare is a bitch
@@ -124,121 +112,50 @@ sub query_range {
 	          );
 	my $res = $ua->request($req);
   if (substr($res->decoded_content,0,1) eq '<') {
+		print "found nothing\n";
     $result->{error} = 1;
     return $result;
 	}
 	my $data = decode_json($res->decoded_content);
 	$result->{asn}      = $data->{data}{asns}[0]{asn};
 	$result->{provider} = $data->{data}{asns}[0]{description};
-	$result->{provider} = $data->{data}{description_short} if not defined($result->{prefix});
-	$result->{provider} = $data->{data}{description_full} if not defined($result->{prefix});
-	$result->{provider} = 'Unknown' if not defined($result->{prefix});
+	$result->{provider} = $data->{data}{description_short} if not defined($result->{provider});
+	$result->{provider} = $data->{data}{description_full} if not defined($result->{provider});
+	$result->{provider} = 'Unknown' if not defined($result->{provider});
 
 	return $result;
 }
 
-# DB Related Subroutines ------------------------------------------------------
-sub db_keepalive {
-	if(!$dbh->ping) {
-		$dbh = DBI->connect_cached(
-             "DBI:mysql:database=$dbname;host=$dbhost;port=$dbport",
-             $dbuser,
-             $dbpass
-           ) or die "Could not connect to database!\n";
+sub query_asn {
+	my $asn = shift;
+	my $result;
+
+	my $ua = LWP::UserAgent->new(send_te => 0);
+	$ua->agent("Mozilla/8.0"); # because cloudflare is a bitch
+	my $req = HTTP::Request->new(
+	            GET => "https://api.bgpview.io/asn/$asn",
+	            [
+	              'Content-Type' => "application/json"
+	            ]
+	          );
+	my $res = $ua->request($req);
+  if (substr($res->decoded_content,0,1) eq '<') {
+    $result->{error} = 1;
+    return $result;
 	}
-}
+	my $data = decode_json($res->decoded_content);
+	$result->{provider} = $data->{data}{description_short};
+	$result->{provider} = $data->{data}{description_full} if not defined($result->{provider});
+	$result->{provider} = $data->{data}{name} if not defined($result->{provider});
+	$result->{provider} = 'Unknown' if not defined($result->{provider});
 
-sub add_net {
-	my $range = shift;
-	db_keepalive();
-	my $asn = query_range($range);
-	if (defined $asn->{error}) {
-		print "JSON Error, Null ASN\n";
-		my $sth = $dbh->prepare(q{
-		  INSERT INTO ipnet_blocklist (ip4_net, provider, infractions, infractions_type, ban_expiration, permaban)
-			VALUES (?,?,1,0,DATE_ADD(NOW(), INTERVAL 1 DAY),?)
-			ON DUPLICATE KEY UPDATE infractions = infractions +1,
-		                          ban_expiration = DATE_ADD(NOW(), INTERVAL 1 DAY),
-		                          infractions_type = 0;
-		});
-		$sth->execute($range,'Unknown',$permaban);
-	}
-
-	else {
-		my $sth = $dbh->prepare(q{
-		  INSERT INTO ipnet_blocklist (ip4_net, asn, provider, infractions, infractions_type, ban_expiration, permaban)
-			VALUES (?,?,?,1,0,DATE_ADD(NOW(), INTERVAL 1 DAY),?)
-			ON DUPLICATE KEY UPDATE infractions = infractions +1,
-		                          ban_expiration = DATE_ADD(NOW(), INTERVAL 1 DAY),
-		                          infractions_type = 0;
-		});
-		$sth->execute($range,$asn->{asn},$asn->{provider},$permaban);
-	}
-
-	print "added.\n";
-}
-
-sub add_ip {
-	my $ip = shift;
-	db_keepalive();
-
-	my $range = query_ip($ip);
-	if (defined $range->{error}) {
-		print "JSON Error, Null Range, Guessing\n";
-		my @splitip = split(/\./, $ip);
-		my $prefix = $splitip[0].".".$splitip[1].".0.0/24";
-		my $sth = $dbh->prepare(q{
-		  INSERT INTO ip_blocklist (ip4, ip4_net, provider, infractions, infractions_type, ban_expiration, permaban)
-		  VALUES (INET_ATON(?),?,?,1,0,DATE_ADD(NOW(), INTERVAL 1 DAY),?)
-		  ON DUPLICATE KEY UPDATE infractions = infractions + 1,
-		                          ban_expiration = DATE_ADD(NOW(), INTERVAL 1 DAY),
-		                          infractions_type = 0;
-		});
-		$sth->execute($ip,$prefix,'Unknown',$permaban);
-	}	
-
-	else {
-		my $sth = $dbh->prepare(q{
-		  INSERT INTO ip_blocklist (ip4, ip4_net, asn, provider, infractions, infractions_type, ban_expiration, permaban)
-		  VALUES (INET_ATON(?),?,?,?,1,0,DATE_ADD(NOW(), INTERVAL 1 DAY),?)
-		  ON DUPLICATE KEY UPDATE infractions = infractions + 1,
-		                          ban_expiration = DATE_ADD(NOW(), INTERVAL 1 DAY),
-		                          infractions_type = 0;
-		});
-		$sth->execute($ip,$range->{prefix},$range->{asn},$range->{provider},$permaban);
-	}
-
-	print "added.\n";
-}
-
-sub del_net {
-	my $range = shift;
-	db_keepalive();
-
-	my $sth = $dbh->prepare(q{
-	  DELETE FROM ipnet_blocklist WHERE ip4_net = ?;
-	});
-	$sth->execute($range);
-
-	print "deleted.\n";
-}
-
-sub del_ip {
-	my $ip = shift;
-	db_keepalive();
-
-	my $sth = $dbh->prepare(q{
-	  DELETE FROM ip_blocklist WHERE ip4 = INET_ATON(?);
-	});
-	$sth->execute($ip);
-
-	print "deleted.\n";
+	return $result;
 }
 
 # Begin Main Code -------------------------------------------------------------
 
 print "\nRBL Updater Suite v.$version\n".
-      "\tReporter\n\n";
+      "\nASN Updater\n\n";
 
 # Open DB connection
 $dbh = DBI->connect(
@@ -247,26 +164,76 @@ $dbh = DBI->connect(
             $dbpass
           ) or die "Could not connect to database!\n";
 
-if ($ipinput ne '') {
-	print "IP $ipinput... ";
-	if ($delete == 0) {
-		add_ip($ipinput);
+my ($ip,$range,$asn,$provider);
+
+# IP cascade
+while (my @row = $dbh->selectrow_array(q{ SELECT INET_NTOA(ip4),ip4_net FROM ip_blocklist WHERE asn IS NULL AND provider IS NULL LIMIT 1; })) {
+	$ip = $row[0];
+	my $old_range = $row[1];
+	my $result = query_ip($ip);
+	if (defined $result->{error}) {
+		print "JSON error\n";
+		my $sth = $dbh->prepare(q{ UPDATE ip_blocklist SET provider = 'Unknown' WHERE ip4 = INET_ATON(?); });
+		$sth->execute($ip);
+		print "updated $ip with unknown\n";
 	}
 	else {
-		del_ip($ipinput);
+		$range = $result->{prefix};
+		$asn = $result->{asn};
+		$provider = $result->{provider};
+
+		my $sth = $dbh->prepare(q{ UPDATE ip_blocklist SET ip4_net = ?, asn = ?, provider = ? where ip4_net = ?; });
+		$sth->execute($range,$asn,$provider,$old_range);
+
+		print "updated $range belonging to AS$asn, $provider - based on $ip\n";
 	}
+	$ip = '';
+	$range = '';
+	$asn = '';
+	$provider = '';
 }
-elsif ($netinput ne '') {
-	print "Net $netinput... ";
-	if ($delete == 0) {
-		add_net($netinput);
+
+# focus on networks now
+while ($range = $dbh->selectrow_array(q{ SELECT ip4_net FROM ipnet_blocklist WHERE asn IS NULL AND provider IS NULL LIMIT 1; })) {
+	my $result = query_range($range);
+	if (defined $result->{error}) {
+		print "JSON error\n";
+		my $sth = $dbh->prepare(q{ UPDATE ipnet_blocklist SET provider = 'Unknown' WHERE ip4_net = ? });
+		$sth->execute($range);
+
+		print "updated $range unknown\n";
 	}
 	else {
-		del_net($netinput);
+		$asn = $result->{asn};
+		$provider = $result->{provider};
+
+		my $sth = $dbh->prepare(q{ UPDATE ipnet_blocklist SET asn = ?, provider = ? WHERE ip4_net = ? });
+		$sth->execute($asn,$provider,$range);
+
+		print "updated $range belonging to AS$asn, $provider\n";
 	}
+	$range = '';
 }
-else {
-	usage();
+
+# finally update the ASNs
+while ($asn = $dbh->selectrow_array(q{ SELECT asn FROM asn_blocklist WHERE provider IS NULL LIMIT 1; })) {
+	my $result = query_asn($asn);
+	if (defined $result->{error}) {
+		print "JSON error\n";
+		my $sth = $dbh->prepare(q{ UPDATE asn_blocklist SET provider = 'Unknown' WHERE asn = ? });
+		$sth->execute($asn);
+
+		print "updated $asn unknown\n";
+	}
+	else {
+		$provider = $result->{provider};
+
+		my $sth = $dbh->prepare(q{ UPDATE asn_blocklist SET provider = ? WHERE asn = ? });
+		$sth->execute($provider,$asn);
+
+		print "updated AS$asn, $provider\n";
+	}
+	$asn = '';
 }
 
 $dbh->disconnect;

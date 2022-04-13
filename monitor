@@ -90,9 +90,12 @@ sub query_ip {
 		return $result;
 	}
 	my $data = decode_json($res->decoded_content);
-	$result->{prefix} = $data->{data}{prefixes}[0]{prefix};
-	$result->{prefix} = $data->{data}{rir_allocation}{prefix} if not defined($result->{prefix});
-	$result->{asn} = $data->{data}{prefixes}[0]{asn}{asn};
+	$result->{prefix}   = $data->{data}{rir_allocation}{prefix};
+	$result->{prefix}   = $data->{data}{prefixes}[0]{prefix} if not defined($result->{prefix});
+	$result->{asn}      = $data->{data}{prefixes}[0]{asn}{asn};
+	$result->{provider} = $data->{data}{prefixes}[0]{asn}{description};
+	$result->{provider} = $data->{data}{prefixes}[0]{description} if not defined($result->{provider});
+	$result->{provider} = 'Unknown' if not defined($result->{provider});
 
 	return $result;
 }
@@ -139,6 +142,7 @@ sub db_keepalive {
 
 sub add_asn {
 	my $asn = shift;
+	my $provider = shift;
 	db_keepalive();
 	my $sth;
 
@@ -149,7 +153,7 @@ sub add_asn {
 
 	# when the recusive call returns, we can continue;
 
-	print "FLAGGED: AS$asn\n";
+	print "FLAGGED: AS$asn - $provider\n";
 
 	# check if the ASN has been recorded
 	# if it doesn't exist, put it in the database
@@ -157,8 +161,8 @@ sub add_asn {
 
 		# we need to record the ASN
 		$sth = $dbh->prepare(q{
-		  INSERT INTO asn_blocklist (asn, blocked_ranges, total_ranges, infractions, infractions_type, permaban)
-		  VALUES (?,1,?,0,1,0);
+		  INSERT INTO asn_blocklist (asn, provider, blocked_ranges, total_ranges, infractions, infractions_type, permaban)
+		  VALUES (?,?,1,?,0,1,0);
 		});
 
 		# asn query now...
@@ -174,7 +178,7 @@ sub add_asn {
 		else {
 			print "AS$asn has ".scalar(@ranges)." ranges\n";
 
-			$sth->execute($asn,scalar(@ranges));
+			$sth->execute($asn,$provider,scalar(@ranges));
 		}
 	}
 	else {
@@ -219,8 +223,8 @@ sub add_asn {
 				});
 				$sth->execute($asn);
 				$sth = $dbh->prepare(q{
-				  INSERT INTO ipnet_blocklist (ip4_net, asn, infractions, infractions_type, ban_expiration, permaban)
-				  VALUES (?,?,0,1,DATE_ADD(NOW(), INTERVAL 1 WEEK),0)
+				  INSERT INTO ipnet_blocklist (ip4_net, asn, provider, infractions, infractions_type, ban_expiration, permaban)
+				  VALUES (?,?,?,0,1,DATE_ADD(NOW(), INTERVAL 1 WEEK),0)
 				  ON DUPLICATE KEY UPDATE ban_expiration = CASE
 				    WHEN ban_expiration < NOW() THEN DATE_ADD(NOW(), INTERVAL 1 WEEK)
 				    WHEN ban_expiration >= NOW() THEN DATE_ADD(ban_expiration, INTERVAL 1 WEEK)
@@ -237,8 +241,8 @@ sub add_asn {
 				});
 				$sth->execute($asn);
 				$sth = $dbh->prepare(q{
-				  INSERT INTO ipnet_blocklist (ip4_net, asn, infractions, infractions_type, ban_expiration, permaban)
-				  VALUES (?,?,0,1,DATE_ADD(NOW(), INTERVAL 1 MONTH),0)
+				  INSERT INTO ipnet_blocklist (ip4_net, asn, provider, infractions, infractions_type, ban_expiration, permaban)
+				  VALUES (?,?,?,0,1,DATE_ADD(NOW(), INTERVAL 1 MONTH),0)
 				  ON DUPLICATE KEY UPDATE ban_expiration = CASE
 				    WHEN ban_expiration < NOW() THEN DATE_ADD(NOW(), INTERVAL 1 MONTH)
 				    WHEN ban_expiration >= NOW() THEN DATE_ADD(ban_expiration, INTERVAL 1 MONTH)
@@ -255,14 +259,14 @@ sub add_asn {
 				});
 				$sth->execute($asn);
 				$sth = $dbh->prepare(q{
-				  INSERT INTO ipnet_blocklist (ip4_net, asn, infractions, infractions_type, ban_expiration, permaban)
-				  VALUES (?,?,0,1,NOW(),1)
+				  INSERT INTO ipnet_blocklist (ip4_net, asn, provider, infractions, infractions_type, ban_expiration, permaban)
+				  VALUES (?,?,?,0,1,NOW(),1)
 				  ON DUPLICATE KEY UPDATE permaban = 1;
 				});
 			}
 			foreach my $range (@ranges) {
 				print "\tBan added for $range\n";
-				$sth->execute($range,$asn);
+				$sth->execute($range,$asn,$provider);
 			}
 		}
 	}
@@ -273,19 +277,20 @@ sub add_net {
 	db_keepalive();
 	my $prefix = $range->{prefix};
 	my $asn = $range->{asn};
+	my $provider = $range->{provider};
 
 	# at this point, we've gotta be cautious, as this may create collateral damage
-	print "FLAGGED: $prefix\n";
+	print "FLAGGED: $prefix - $provider\n";
 	my $sth = $dbh->prepare(q{
-	  INSERT INTO ipnet_blocklist (ip4_net, asn, infractions, infractions_type, ban_expiration, permaban)
-		VALUES (?,?,1,1,NOW(),0)
+	  INSERT INTO ipnet_blocklist (ip4_net, asn, provider, infractions, infractions_type, ban_expiration, permaban)
+		VALUES (?,?,?,1,1,NOW(),0)
 		ON DUPLICATE KEY UPDATE infractions = infractions + 1,
 	                          ban_expiration = CASE
 	                            WHEN ban_expiration < NOW() THEN DATE_ADD(NOW(), INTERVAL 1 HOUR)
 	                            WHEN ban_expiration >= NOW() THEN DATE_ADD(ban_expiration, INTERVAL 1 HOUR)
 	                          END;
 	});
-	$sth->execute($prefix,$asn);
+	$sth->execute($prefix,$asn,$provider);
 
 	# increment any time-based banned based on infractions...
 	my $infractions = $dbh->selectrow_array("SELECT infractions FROM ipnet_blocklist WHERE ip4_net = '$prefix';");
@@ -303,7 +308,7 @@ sub add_net {
 		});
 		$sth->execute($prefix);
 
-		add_asn($asn) if $sth->rows >= 1;
+		add_asn($asn,$provider) if $sth->rows >= 1;
 	}
 	else {
 		if ($infractions == 3) {
@@ -353,15 +358,15 @@ sub add_ip {
 	add_ip($queued) if defined($queued);
 
 	# now we process the IP we just got
-	print "FLAGGED: $ip\n";
+	print "FLAGGED: $ip - ".$range->{provider}."\n";
 
 	# simple increment, create if it doesn't exist
 	my $sth = $dbh->prepare(q{
-	  INSERT INTO ip_blocklist (ip4, ip4_net, infractions, infractions_type, ban_expiration, permaban)
-	  VALUES (INET_ATON(?),?,1,1,NOW(),0)
+	  INSERT INTO ip_blocklist (ip4, ip4_net, asn, provider, infractions, infractions_type, ban_expiration, permaban)
+	  VALUES (INET_ATON(?),?,?,?,1,1,NOW(),0)
 	  ON DUPLICATE KEY UPDATE infractions = infractions + 1;
 	});
-	$sth->execute($ip,$range->{prefix});
+	$sth->execute($ip,$range->{prefix},$range->{asn},$range->{provider});
 
 	# increment time-based bans, set permabans as needed
 	my $infractions = $dbh->selectrow_array("SELECT infractions FROM ip_blocklist WHERE ip4 = INET_ATON('$ip');");
