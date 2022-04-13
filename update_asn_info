@@ -194,7 +194,7 @@ while (my @row = $dbh->selectrow_array(q{ SELECT INET_NTOA(ip4),ip4_net FROM ip_
 }
 
 # focus on networks now
-while ($range = $dbh->selectrow_array(q{ SELECT ip4_net FROM ipnet_blocklist WHERE asn IS NULL AND provider IS NULL LIMIT 1; })) {
+while ($range = $dbh->selectrow_array(q{ SELECT ip4_net FROM ipnet_blocklist WHERE provider IS NULL LIMIT 1; })) {
 	my $result = query_range($range);
 	if (defined $result->{error}) {
 		print "JSON error\n";

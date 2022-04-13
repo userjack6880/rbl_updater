@@ -24,7 +24,7 @@ This script is used to manually report an IP address or range. Regardless of pre
                 -i      [IPv4 Address]  Adds a single IP address
                 -n      [CIDR Notation] Adds a CIDR notation network range
                 -p      Makes either IP address or network range permabanned
-                -d      Delete either IP address or network range provided.
+                -d      Delete either IP address or network range provided
 ```
 
 ## `generate_list`
@@ -34,6 +34,10 @@ This script will create a plaintext file with the IP addresses and network range
 ## `list_bans`
 
 This script will list all current bans and all ASN entries.
+
+## `update_asn_info`
+
+This is only used to update SQL tables prior to Version 0 Alpha 1.3 to include new provider field in each table, and add ASN info to entries that had that column added.
 
 # Principle of Operation
 

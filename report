@@ -62,6 +62,7 @@ sub usage {
 	      "\t\t-i\t[IPv4 Address]\tAdds a single IP address\n".
 	      "\t\t-n\t[CIDR Notation]\tAdds a CIDR notation network range\n".
 	      "\t\t-p\tMakes either IP address or network range permabanned\n".
+	      "\t\t-d\tDelete either IP address or network range provided\n".
 	      "\n";
 }
 
