@@ -136,6 +136,9 @@ $dbpass  = '';
 - Graceful JSON failure in `report`.
 - Added ability to delete entries from `report`.
 - Added IP queue in `monitor` for JSON failure handling.
+- Dealt with some inconsistencies in how various ASN's list their information.
+- Added "provider" field to each table.
+- Reduced the information overload on `list_bans`.
 
 # Tested System Configuration
 

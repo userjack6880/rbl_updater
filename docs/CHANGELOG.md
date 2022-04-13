@@ -4,6 +4,12 @@
 - Updated documentation.
 - Removed versioning from config.
 - Added `list_bans`.
+- Graceful JSON failure in `report`.
+- Added ability to delete entries from `report`.
+- Added IP queue in `monitor` for JSON failure handling.
+- Dealt with some inconsistencies in how various ASN's list their information.
+- Added "provider" field to each table.
+- Reduced the information overload on `list_bans`.
 
 ## 0-α1.2
 - Fixed log regex for monitor script.
