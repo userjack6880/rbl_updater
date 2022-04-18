@@ -30,6 +30,7 @@
 use strict;
 use warnings;
 
+use Getopt::Std;
 use File::Tail;
 use File::Basename;
 use JSON;
@@ -40,23 +41,43 @@ use DBI;
 # version number
 my $version = '0 alpha-1.3';
 
+# basic settings --------------------------------------------------------------
+my %opts = ();
+getopts('c:vi:sh', \%opts);
+
+my $verbose     = ($opts{'v'} || 0);
+my $import_file = ($opts{'i'} || '');
+my $tail_start = 0;
+if (defined $opts{'s'}) {
+    $tail_start = '-'.$opts{'s'};
+} 
+my $conffile = ($opts{'c'} || 'config.conf');
+
 # usage sub -------------------------------------------------------------------
 sub usage {
 	print "\n".
 	      "\tUsage:\n".
-	      "\t\t./monitor\n".
+	      "\t\t./monitor [opts]\n".
 	      "\n".
 	      "\tThis script monitors the mail log defined in the config file in real\n".
 	      "\ttime and updates the database accordingly.\n".
 	      "\n".
-	      "\tThere are no further options.\n".
+	      "\tOptions:\n".
+          "\t\t-c [confpath]\tLoad Config File\n".
+	      "\t\t-v\t\tVerbose Mode\n".
+          "\t\t-i [logpath]\tImport Log\n".
+          "\t\t-s\t\tStart Tail at Beginning\n".
 	      "\n";
 }
 
+if (defined $opts{'h'}) {
+    usage();
+    exit;
+}
+
 # load config file ------------------------------------------------------------
-our ($asnlist,$iplist,$dbname,$dbhost,$dbport,$dbuser,$dbpass,$log);
+our ($asnlist,$iplist,$dbname,$dbhost,$dbport,$dbuser,$dbpass,$maillog,$log);
 my @ipqueue;
-my $conffile = 'config.conf';
 
 if (substr($conffile,0,1) ne '/' and substr($conffile,0,1) ne '.') { $conffile = "./$conffile"; }
 
@@ -86,6 +107,7 @@ sub query_ip {
 	my $res = $ua->request($req);
 	# return error if JSON isn't returned
 	if (substr($res->decoded_content,0,1) eq '<') {
+        logme("bgpview returned nothing");
 		$result->{error} = 1;
 		return $result;
 	}
@@ -93,10 +115,18 @@ sub query_ip {
 	$result->{prefix}   = $data->{data}{rir_allocation}{prefix};
 	$result->{prefix}   = $data->{data}{prefixes}[0]{prefix} if not defined($result->{prefix});
 	$result->{asn}      = $data->{data}{prefixes}[0]{asn}{asn};
+    my $asn;
+    if (defined($result->{asn})) { 
+        $asn = $result->{asn}; 
+    }
+    else { 
+        $asn = 'Unknown'; 
+    }
 	$result->{provider} = $data->{data}{prefixes}[0]{asn}{description};
 	$result->{provider} = $data->{data}{prefixes}[0]{description} if not defined($result->{provider});
 	$result->{provider} = 'Unknown' if not defined($result->{provider});
 
+    logme("bgpview results\tprefix: ".$result->{prefix}."\tasn: $asn\tprovider: ".$result->{provider});
 	return $result;
 }
 
@@ -116,6 +146,7 @@ sub query_asn {
 	          );
 	my $res = $ua->request($req);
 	if (substr($res->decoded_content,0,1) eq '<') {
+        logme("bgpview returned nothing");
 		$result[0] = 1;
 		return @result;
 	}
@@ -123,6 +154,7 @@ sub query_asn {
 	my $itr = 0;
 	foreach my $entry (@{$data->{data}{ipv4_prefixes}}) {
 		$result[$itr] = $entry->{prefix};
+        logme("prefix ".$result[$itr]." belongs to AS$asn");
 		$itr++;
 	}
 
@@ -153,7 +185,8 @@ sub add_asn {
 
 	# when the recusive call returns, we can continue;
 
-	print "FLAGGED: AS$asn - $provider\n";
+	print "FLAGGED: AS$asn - $provider\n" if $verbose;
+    logme("FLAGGED: AS$asn - $provider");
 
 	# check if the ASN has been recorded
 	# if it doesn't exist, put it in the database
@@ -168,15 +201,18 @@ sub add_asn {
 		# asn query now...
 		my @ranges = query_asn($asn);
 		if (!@ranges) {
-			print "no ASN info! skipping\n";
+			print "no ASN info! skipping\n" if $verbose;
+            logme("no ASN info! skipping");
 			return;
 		}
 		if ($ranges[0] == 1) {
 			print "JSON error. Skipping\n";
+            logme("JSON error. Skipping");
 			return;
 		}
 		else {
-			print "AS$asn has ".scalar(@ranges)." ranges\n";
+			print "AS$asn has ".scalar(@ranges)." ranges\n" if $verbose;
+            logme("AS$asn has ".scalar(@ranges)." ranges");
 
 			$sth->execute($asn,$provider,scalar(@ranges));
 		}
@@ -193,28 +229,34 @@ sub add_asn {
 
 		# next, we need to count how many banned ranges are in this ASN, then determine action
 		my ($banned,$total,$infractions) = $dbh->selectrow_array("SELECT blocked_ranges,total_ranges,infractions FROM asn_blocklist WHERE asn = '$asn';");
-		print "AS$asn has $total ranges. $banned ranges are banned. AS$asn has $infractions infractions\n";
+		print "AS$asn has $total ranges. $banned ranges are banned. AS$asn has $infractions infractions\n" if $verbose;
+        logme("AS$asn has $total ranges. $banned ranges are banned. AS$asn has $infractions infractions");
 
 		# because this will never be the first time this happens, we can safey process actions here...
 		# check if 50% has been exceeded
 		my $percent = sprintf("%.0f",($banned/$total)*100);
-		print "$percent% banned\n";
+		print "$percent% banned\n" if $verbose;
+        logme("$percent% banned");
 
 		if ($percent > 50) {
-			print "threshold exceeded!\n";
+			print "threshold exceeded!\n" if $verbose;
+            logme("threshold exceeded!");
 
 			my @ranges = query_asn($asn);
 			if (!@ranges) {
-				print "no ASN info!\n";
+				print "no ASN info!\n" if $verbose;
+                logme("no ASN info! skipping");
 				return;
 			}
 			if ($ranges[0] == 1) {
-				print "JSON error\n";
+				print "JSON error\n" if $verbose;
+                logme("JSON error. Skipping");
 				return;
 			}
 			# we need to increase the infraction count, or permaban if infraction count is exceeded
 			if ($infractions == 0) {
-				print "AS$asn: first infraction, 1 week ban\n";
+				print "AS$asn: first infraction, 1 week ban\n" if $verbose;
+                logme("AS$asn: first infraction, 1 week ban");
 				$sth = $dbh->prepare(q{
 				  UPDATE asn_blocklist
 				  SET infractions = infractions +1
@@ -232,7 +274,8 @@ sub add_asn {
 				});
 			}
 			elsif ($infractions == 1) {
-				print "AS$asn: second infraction, 1 week ban\n";
+				print "AS$asn: second infraction, 1 week ban\n" if $verbose;
+                logme("AS$asn: second infraction, 1 week ban");
 				$sth = $dbh->prepare(q{
 				  UPDATE asn_blocklist
 				  SET infractions = infractions +1
@@ -250,7 +293,8 @@ sub add_asn {
 				});
 			}
 			else {
-				print "AS$asn: third infraction, perma ban\n";
+				print "AS$asn: third infraction, perma ban\n" if $verbose;
+                logme("AS$asn: third infraction, permaban");
 				$sth = $dbh->prepare(q{
 				  UPDATE asn_blocklist
 					SET permaban = 1
@@ -265,7 +309,8 @@ sub add_asn {
 				});
 			}
 			foreach my $range (@ranges) {
-				print "\tBan added for $range\n";
+				print "\tBan added for $range\n" if $verbose;
+                logme("Ban added for $range");
 				$sth->execute($range,$asn,$provider);
 			}
 		}
@@ -280,7 +325,8 @@ sub add_net {
 	my $provider = $range->{provider};
 
 	# at this point, we've gotta be cautious, as this may create collateral damage
-	print "FLAGGED: $prefix - $provider\n";
+	print "FLAGGED: $prefix - $provider\n" if $verbose;
+    logme("FLAGGED: $prefix - $provider");
 	my $sth = $dbh->prepare(q{
 	  INSERT INTO ipnet_blocklist (ip4_net, asn, provider, infractions, infractions_type, ban_expiration, permaban)
 		VALUES (?,?,?,1,1,NOW(),0)
@@ -295,10 +341,12 @@ sub add_net {
 	# increment any time-based banned based on infractions...
 	my $infractions = $dbh->selectrow_array("SELECT infractions FROM ipnet_blocklist WHERE ip4_net = '$prefix';");
 
-	print "\t$infractions range infractions\n";
+	print "\t$infractions range infractions\n" if $verbose;
+    logme("$infractions range infractions");
 
 	if ($infractions > 24) {
-		print "$prefix is now permanently banned!\n";
+		print "$prefix is now permanently banned!\n" if $verbose;
+        logme("$prefix is now permanently banned!");
 		# add prefix to permaban, note infraction in asn
 		$sth = $dbh->prepare(q{
 		  UPDATE ipnet_blocklist
@@ -320,7 +368,8 @@ sub add_net {
 			  END
 			  where ip4_net = ?;
 			});
-			print "$prefix has recieved a 1 day ban\n";
+			print "$prefix has recieved a 1 day ban\n" if $verbose;
+            logme("$prefix has recieved a 1 day ban");
 		}
 		if ($infractions > 3 && $infractions < 25) {
 			$sth = $dbh->prepare(q{
@@ -331,7 +380,8 @@ sub add_net {
 			  END
 			  where ip4_net = ?;
 			});
-			print "$prefix has recieved a 1 week ban\n";
+			print "$prefix has recieved a 1 week ban\n" if $verbose;
+            logme("$prefix has recieved a 1 week ban");
 		}
 
 		$sth->execute($prefix) if $infractions > 3;
@@ -342,23 +392,24 @@ sub add_ip {
 	my $ip = shift;
 	db_keepalive();
 
-	print localtime().": ";
+	print localtime().": " if $verbose;
 
 	# first check if we can even process the ip, if not, throw it on the queue
 	my $range = query_ip($ip);
 	if (defined $range->{error}) {
 		push(@ipqueue, $ip);
-		print "JSON error. Saving $ip in queue!\tQueue has ".scalar(@ipqueue)." IPs\n";
+		print "JSON error. Saving $ip in queue!\tQueue has ".scalar(@ipqueue)." IPs\n" if $verbose;
+        logme("JSON error. Saving $ip in queue!\tQueue has ".scalar(@ipqueue)." IPs");
 		return;
 	}
 
 	# next we should process through queued IPs
 	my $queued = pop(@ipqueue);
 
-	add_ip($queued) if defined($queued);
+    add_ip($queued) if defined($queued);
 
 	# now we process the IP we just got
-	print "FLAGGED: $ip - ".$range->{provider}."\n";
+	print "FLAGGED: $ip - ".$range->{provider}."\n" if $verbose;
 
 	# simple increment, create if it doesn't exist
 	my $sth = $dbh->prepare(q{
@@ -371,18 +422,21 @@ sub add_ip {
 	# increment time-based bans, set permabans as needed
 	my $infractions = $dbh->selectrow_array("SELECT infractions FROM ip_blocklist WHERE ip4 = INET_ATON('$ip');");
 
-	print "\t$infractions infractions\n";
+	print "\t$infractions infractions\n" if $verbose;
+    logme("FLAGGED: $ip - ".$range->{provider}."\t$infractions infractions");
 
 	# check to see if there are more than 5 address in the net that are currently banned... if so, then more severely punish the prefix
 	# does not penalize for permabanned IPs
 	if ($dbh->selectrow_array("SELECT COUNT(*) FROM ip_blocklist WHERE ip4_net = '$range->{prefix}' AND ban_expiration > NOW();") > 5) {
-		print "\tUnusually high infraction from net $range->{prefix}. Punishing\n";
+		print "\tUnusually high infraction from net $range->{prefix}. Punishing\n" if $verbose;
+        logme("Unusually high infraction from net ".$range->{prefix}.". Punishing");
 
 		add_net($range);
 	}
 
 	if ($infractions > 3) {
-		print "$ip is now permanently banned!\n";
+		print "$ip is now permanently banned!\n" if $verbose;
+        logme("$ip is now permanently banned!");
 		# adds ip to permaban, add infraction to the IP4net
 		$sth = $dbh->prepare(q{
 		  UPDATE ip_blocklist 
@@ -404,7 +458,8 @@ sub add_ip {
 			  END
 			  WHERE ip4 = INET_ATON(?);
 			});
-			print "$ip has recieved a 1hr ban\n";
+			print "$ip has recieved a 1hr ban\n" if $verbose;
+            logme("$ip has recieved a 1hr ban!");
 		}
 
 		if ($infractions == 2) {
@@ -416,7 +471,8 @@ sub add_ip {
 			  END
 			  WHERE ip4 = INET_ATON(?);
 			});
-			print "$ip has recieved a 6hr ban\n";
+			print "$ip has recieved a 6hr ban\n" if $verbose;
+            logme("$ip has recieved a 6hr ban!");
 		}
 
 		if ($infractions == 3) {
@@ -428,7 +484,8 @@ sub add_ip {
 			  END
 			  WHERE ip4 = INET_ATON(?);
 			});
-			print "$ip has recieved a 12hr ban\n";
+			print "$ip has recieved a 12hr ban\n" if $verbose;
+            logme("$ip has recieved a 12hr ban!");
 		}
 
 		$sth->execute($ip);
@@ -436,28 +493,23 @@ sub add_ip {
 
 }
 
-# Begin Main Code -------------------------------------------------------------
+# Logging Mechanism -----------------------------------------------------------
 
-print "\nRBL Updater Suite v.$version\n".
-      "\tMonitor\n\n".
-      "Monitoring $log\n";
+sub logme {
+    my $logmsg = shift;
+    open (my $fh, '>>', $log) or die "Could not open log!\n";
+    print $fh localtime()."\t$logmsg\n";
+    close $fh;
+}
 
-# Open DB connection
-$dbh = DBI->connect(
-            "DBI:mysql:database=$dbname;host=$dbhost;port=$dbport",
-            $dbuser,
-            $dbpass
-          ) or die "Could not connect to database!\n";
+# Process Lines ---------------------------------------------------------------
 
-# monitor log file and act when proper log arrives
-my $file=File::Tail->new($log);
-while (defined(my $line=$file->read)) {
-#open(my $file, '<', $log) or die "could not open log";
-#while (my $line = <$file>) {
-
-	# rejects by postfix are autoinfractions
-	if ($line =~ /^.+NOQUEUE: reject:.+/) {
+sub proc_line {
+    my $line = shift;
+    # rejects by postfix are autoinfractions
+    if ($line =~ /^.+NOQUEUE: reject:.+/) {
 		if ($line =~ m/^.+\[(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}).+/) {
+            logme("matched on NOQUEUE - ($line)");
 			add_ip($1);
 		}
 	}
@@ -469,10 +521,47 @@ while (defined(my $line=$file->read)) {
 		    $line =~ /^.+spam.+/ ||
 		    $line =~ /^.+Spam.+/ ) {
 			if ($line =~ m/^.+\[(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}).+/) {
+                logme("matched on milter-reject - ($line)");
 				add_ip($1);
 			}
 		}
 	}
+}
+
+# Begin Main Code -------------------------------------------------------------
+
+
+print "\nRBL Updater Suite v.$version\n".
+      "\tMonitor\n\n".
+      "Monitoring $maillog\n" if $verbose;
+logme("starting rbl updater suite v.$version monitor - monitoring $maillog");
+
+# Open DB connection
+
+logme("connecting to $dbname\@$dbhost:$dbport");
+$dbh = DBI->connect(
+            "DBI:mysql:database=$dbname;host=$dbhost;port=$dbport",
+            $dbuser,
+            $dbpass
+          ) or die "Could not connect to database!\n";
+logme("success!");
+
+# optionally import logs and quit;
+if ($import_file ne '') {
+    logme("importing $import_file");
+    open(my $file, '<', $import_file) or die "could not open log";
+    while (my $line = <$file>) {
+        proc_line($line);
+    }
+    logme("import done!");
+}
+
+# monitor log file and act when proper log arrives
+else {
+    my $file=File::Tail->new(name=>$maillog,tail=>$tail_start,reset_tail=>$tail_start);
+    while (defined(my $line=$file->read)) {
+    	proc_line($line);
+    }
 }
 
 $dbh->disconnect;

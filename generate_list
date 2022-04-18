@@ -38,20 +38,32 @@ use DBI;
 # version number
 my $version = '0 alpha-1.3';
 
+# basic settings --------------------------------------------------------------
+my %opts = ();
+getopts('c:h', \%opts);
+
+my $conffile = ($opts{'c'} || 'config.conf');
+
 # usage sub -------------------------------------------------------------------
 sub usage {
 	print "\n".
 	      "\tUsage:\n".
 	      "\t\t./generate_list\n".
 	      "\n".
-	      "\tThis script generates IP and ASN Banlists for use by RSPAMD. There are".
-	      "\tno further options.\n".
+	      "\tThis script generates IP and ASN Banlists for use by RSPAMD.\n".
+	      "\n".
+	      "\tOptions:\n".
+          "\t\t-c\t[confpath]\tLoad Config File\n".
 	      "\n";
 }
 
+if (defined $opts{'h'}) {
+    usage();
+    exit;
+}
+
 # load conf file --------------------------------------------------------------
-our ($asnlist,$iplist,$dbname,$dbhost,$dbport,$dbuser,$dbpass,$log,$version);
-my $conffile = 'config.conf';
+our ($asnlist,$iplist,$dbname,$dbhost,$dbport,$dbuser,$dbpass,$maillog,$log);
 
 if (substr($conffile,0,1) ne '/' and substr($conffile,0,1) ne '.') { $conffile = "./$conffile"; }
 
@@ -82,12 +94,15 @@ $dbh = DBI->connect(
 # open the IP List file
 open(my $fh, ">$iplist");
 
-# pull out all the Perfixes that are permabanned *or* have a ban expiration *after* today
+# pull out all the Prefixes that are permabanned *or* have a ban expiration *after* today
 my $sth = $dbh->prepare(q{
   SELECT ip4_net
   FROM ipnet_blocklist
-  WHERE ban_expiration > NOW()
-     OR permaban = 1;
+  WHERE asn NOT IN (SELECT asn FROM asn_blocklist WHERE permaban = 1)
+    AND (
+           ban_expiration > NOW()
+        OR permaban = 1
+        );
 });
 $sth->execute();
 
@@ -99,8 +114,11 @@ while (my $net = $sth->fetchrow_array()) {
 $sth = $dbh->prepare(q{
   SELECT INET_NTOA(ip4)
   FROM ip_blocklist
-  WHERE ban_expiration > NOW()
-     OR permaban = 1;
+  WHERE ip4_net NOT IN (SELECT ip4_net FROM ipnet_blocklist WHERE ban_expiration > NOW() OR permaban = 1)
+    AND (
+           ban_expiration > NOW()
+        OR permaban = 1
+        );
 });
 $sth->execute();
 
