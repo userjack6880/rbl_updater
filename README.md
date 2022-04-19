@@ -10,17 +10,21 @@ This software is extremely experimental and may cause collateral damage on deliv
 
 This is the script that monitors your mail log for a `NOQUEUE: reject` message or a `milter-reject` message containing additional keywords `BLOCKLIST`, `spam`, or `Spam`. When it does that, it flags the IP address associated with the message, and performs a number of actions outlined under the Principle of Operation section of this Readme.
 
+```
+        Options:
+                -c [confpath]   Load Config File
+                -v              Verbose Mode
+                -i [logpath]    Import Log
+                -s              Start Tail at Beginning
+```
+
 ## `report`
 
 This script is used to manually report an IP address or range. Regardless of previous infractions, it will always issue a 1-day ban based on the current time. This can inadvertantly shorten a ban if you are not careful.
 
 ```
-        Usage:
-                ./report [OPTIONS]
-
-        This script add to the database either an IP address or an IP Range.
-
         Options:
+                -c      [confpath]      Load Config File
                 -i      [IPv4 Address]  Adds a single IP address
                 -n      [CIDR Notation] Adds a CIDR notation network range
                 -p      Makes either IP address or network range permabanned
@@ -31,9 +35,20 @@ This script is used to manually report an IP address or range. Regardless of pre
 
 This script will create a plaintext file with the IP addresses and network ranges, deliminated by newlines, at the location specified in the config file.
 
+```
+        Options:
+                -c      [confpath]      Load Config File
+```
+
 ## `list_bans`
 
 This script will list all current bans and all ASN entries.
+
+```
+        Options:
+                -c      [confpath]      Load Config File
+                -l      [number]        limit output of banned IPs
+```
 
 ## `update_asn_info`
 
