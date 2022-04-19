@@ -91,20 +91,39 @@ This is agressive, and possibly hostile, but for the most part, it should never 
 
 # Installation
 
-Needless to say, this is most useful with rspamd, but it can be used to generate a rbl for any email suite - at the end of the day, it simply generates an IPv4/IPv4 Net and ASN list in plain-text format.
+Needless to say, this is most useful with rspamd, but it can be used to generate a rbl for any email suite - at the end of the day, it simply generates an IPv4/IPv4 Net and ASN list in plain-text format. The output of this file can be adjusted in `config.conf`.
 
 ## mySQL
 
 Use the included .sql file.
 
+```
+mysql -u username -p database < tables.sql
+```
+
 ## Perl
 
 Untested on any other OS, but it's highly recommended on a linux machine to install cpanm first, and then install the perl packages through that. Use your OS's recommended methods to install Perl 5 and your choice of mySQL or equivalent.
+
+Using cpanm, the following can be used to install all the required modules.
+
+```
+cpanm DBI File::Tail File::Basename Getopt::Std JSON LWP::UserAgent LWP::Protocol::https Text::Table
+```
 
 ## Scripts
 
 Install anywhere you want. Probably will want to run it as a privleged user, or at least one that can access the files specified in the config. Be sure to fill 
 out the config file and remove the .pub extension.
+
+Suggestion: install symlinks under `/sbin` for the 4 scripts.
+
+```
+/etc/rbl_generate -> generate_list
+/etc/rbl_list     -> list_bans
+/etc/rbl_monitor  -> monitor
+/etc/rbl_report   -> report
+```
 
 # Configuration Options
 **rspamd Blocklists**
@@ -131,6 +150,22 @@ $dbuser  = '';
 $dbpass  = '';
 ```
 
+## Monitor Daemon
+
+Included is a service file that lets you run rbl_updater's `monitor` script as a daemon. Once a symlink for `monitor` is created under `/sbin`, and a symlink to `config.conf` is created under `/etc/rblupdater.conf`, you can copy `systemd/rbl-updater.service` to where your systemd instance stores these (such as `/etc/systemd/system/rbl-updater.service`). Once doing so, you simply need to run the following commands:
+
+```
+systemctl deamon-reload
+systemctl enable rbl-updater
+systemctl start rbl-updater
+```
+
+The monitor script should be running and logging in `/var/log/rbl_updater.log` or wherever you specified under `config.conf`.
+
+## Install Script
+
+Included is also an install script. As of this current version, it's not well tested, and may not perform correctly. Use at your own risk. It's interactive, so you'll need to sit with it while it runs. Run it out of the directory that the script is located in.
+
 # Latest Changes
 
 ## 0-α1.3
@@ -147,6 +182,7 @@ $dbpass  = '';
 - Added logging to `monitor` and shifted informational output to `verbose` mode.
 - Added ability for `monitor` to import past logs and to begin the tail at the start of log file rather than end.
 - Updated `generate_list` with updated query similar to `list_bans` to not add to rspamd blocklists redundant IPs covered by network blocks.
+- Created a rudementary `install` script.
 
 # Tested System Configuration
 

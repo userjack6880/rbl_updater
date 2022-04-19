@@ -10,6 +10,11 @@
 - Dealt with some inconsistencies in how various ASN's list their information.
 - Added "provider" field to each table.
 - Reduced the information overload on `list_bans`.
+- Gave the ability to limit how many entries `list_bans` will output in the ip blocklist table.
+- Added logging to `monitor` and shifted informational output to `verbose` mode.
+- Added ability for `monitor` to import past logs and to begin the tail at the start of log file rather than end.
+- Updated `generate_list` with updated query similar to `list_bans` to not add to rspamd blocklists redundant IPs covered by network blocks.
+- Created a rudementary `install` script.
 
 ## 0-α1.2
 - Fixed log regex for monitor script.
