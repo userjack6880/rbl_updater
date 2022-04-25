@@ -111,8 +111,8 @@ sub query_ip {
 	$result->{prefix}   = $data->{data}{prefixes}[0]{prefix} if not defined($result->{prefix});
 	$result->{asn}      = $data->{data}{prefixes}[0]{asn}{asn};
 	$result->{provider} = $data->{data}{prefixes}[0]{asn}{description};
-	$result->{provider} = $data->{data}{prefixes}[0]{description} if not defined($result->{prefix});
-	$result->{provider} = 'Unknown' if not defined($result->{prefix});
+	$result->{provider} = $data->{data}{prefixes}[0]{description} if not defined($result->{provider});
+	$result->{provider} = 'Unknown' if not defined($result->{provider});
 
 	return $result;
 }
@@ -137,9 +137,9 @@ sub query_range {
 	my $data = decode_json($res->decoded_content);
 	$result->{asn}      = $data->{data}{asns}[0]{asn};
 	$result->{provider} = $data->{data}{asns}[0]{description};
-	$result->{provider} = $data->{data}{description_short} if not defined($result->{prefix});
-	$result->{provider} = $data->{data}{description_full} if not defined($result->{prefix});
-	$result->{provider} = 'Unknown' if not defined($result->{prefix});
+	$result->{provider} = $data->{data}{description_short} if not defined($result->{provider});
+	$result->{provider} = $data->{data}{description_full} if not defined($result->{provider});
+	$result->{provider} = 'Unknown' if not defined($result->{provider});
 
 	return $result;
 }
