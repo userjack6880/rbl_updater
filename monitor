@@ -147,7 +147,7 @@ sub query_asn {
 	my $res = $ua->request($req);
 	if (substr($res->decoded_content,0,1) eq '<') {
         logme("bgpview returned nothing");
-		$result[0] = 1;
+		$result[0] = 'error';
 		return @result;
 	}
 	my $data = decode_json($res->decoded_content);
@@ -205,7 +205,7 @@ sub add_asn {
             logme("no ASN info! skipping");
 			return;
 		}
-		if ($ranges[0] == 1) {
+		if ($ranges[0] eq 'error') {
 			print "JSON error. Skipping\n";
             logme("JSON error. Skipping");
 			return;
@@ -248,7 +248,7 @@ sub add_asn {
                 logme("no ASN info! skipping");
 				return;
 			}
-			if ($ranges[0] == 1) {
+			if ($ranges[0] eq 'error') {
 				print "JSON error\n" if $verbose;
                 logme("JSON error. Skipping");
 				return;
