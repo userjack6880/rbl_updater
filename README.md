@@ -1,6 +1,6 @@
 # RBL Updater Suite
 
-This is the RBL Updater Suite version 0 alpha-1.2 (0-α1.2) by John Bradley (john@systemanomaly.com). The RBL Updater Suite is an Open Source suite of tools to be used in conjunction with rpsamd to help autogenerate a local realtime block list (RBL) not reliant on any external lists, such as spamhaus and the like.
+This is the RBL Updater Suite version 0 alpha-1.3 (0-α1.3) by John Bradley (john@systemanomaly.com). The RBL Updater Suite is an Open Source suite of tools to be used in conjunction with rpsamd to help autogenerate a local realtime block list (RBL) not reliant on any external lists, such as spamhaus and the like.
 
 This software is extremely experimental and may cause collateral damage on deliverability. USE AT YOUR OWN RISK.
 
@@ -10,25 +10,49 @@ This software is extremely experimental and may cause collateral damage on deliv
 
 This is the script that monitors your mail log for a `NOQUEUE: reject` message or a `milter-reject` message containing additional keywords `BLOCKLIST`, `spam`, or `Spam`. When it does that, it flags the IP address associated with the message, and performs a number of actions outlined under the Principle of Operation section of this Readme.
 
+```
+        Options:
+                -c [confpath]   Load Config File
+                -v              Verbose Mode
+                -i [logpath]    Import Log
+                -s              Start Tail at Beginning
+```
+
 ## `report`
 
 This script is used to manually report an IP address or range. Regardless of previous infractions, it will always issue a 1-day ban based on the current time. This can inadvertantly shorten a ban if you are not careful.
 
 ```
-        Usage:
-                ./report [OPTIONS]
-
-        This script add to the database either an IP address or an IP Range.
-
         Options:
+                -c      [confpath]      Load Config File
                 -i      [IPv4 Address]  Adds a single IP address
                 -n      [CIDR Notation] Adds a CIDR notation network range
                 -p      Makes either IP address or network range permabanned
+                -d      Delete either IP address or network range provided
 ```
 
 ## `generate_list`
 
 This script will create a plaintext file with the IP addresses and network ranges, deliminated by newlines, at the location specified in the config file.
+
+```
+        Options:
+                -c      [confpath]      Load Config File
+```
+
+## `list_bans`
+
+This script will list all current bans and all ASN entries.
+
+```
+        Options:
+                -c      [confpath]      Load Config File
+                -l      [number]        limit output of banned IPs
+```
+
+## `update_asn_info`
+
+This is only used to update SQL tables prior to Version 0 Alpha 1.3 to include new provider field in each table, and add ASN info to entries that had that column added.
 
 # Principle of Operation
 
@@ -64,13 +88,13 @@ Bans are cumulative, and infractions are permanently recorded.
 
 This is agressive, and possibly hostile, but for the most part, it should never get as far as an ASN ban.
 
-# Dependencies
+# Requirements
 
-## Required
 - Perl 5 (Tested 5.32.1)
 - mySQL 15.1 or Equivalent (Tested MariaDB 10.5.12)
 
-Perl Packages Used
+# Dependencies
+
 - DBI
 - File::Tail
 - File::Basename
@@ -78,40 +102,134 @@ Perl Packages Used
 - JSON
 - LWP::UserAgent
 - LWP::Protocol::https
+- Text::Table
 
 # Installation
 
-Needless to say, this is most useful with rspamd, but it can be used to generate a rbl for any email suite - at the end of the day, it simply generates an IPv4/IPv4 Net and ASN list in plain-text format.
+Needless to say, this is most useful with rspamd, but it can be used to generate a rbl for any email suite - at the end of the day, it simply generates an IPv4/IPv4 Net and ASN list in plain-text format. The output of this file can be adjusted in `config.conf`.
 
 ## mySQL
 
 Use the included .sql file.
 
+```
+mysql -u username -p database < tables.sql
+```
+
 ## Perl
 
 Untested on any other OS, but it's highly recommended on a linux machine to install cpanm first, and then install the perl packages through that. Use your OS's recommended methods to install Perl 5 and your choice of mySQL or equivalent.
 
+Using cpanm, the following can be used to install all the required modules.
+
+```
+cpanm DBI File::Tail File::Basename Getopt::Std JSON LWP::UserAgent LWP::Protocol::https Text::Table
+```
+
 ## Scripts
 
-Install anywhere you want. Probably will want to run it as a privleged user, or at least one that can access the files specified in the config. Be sure to fill out the config file and remove the .pub extension.
+Install anywhere you want. Probably will want to run it as a privleged user, or at least one that can access the files specified in the config. Be sure to fill 
+out the config file and remove the .pub extension.
+
+Suggestion: install symlinks under `/sbin` for the 4 scripts.
+
+```
+/etc/rbl_generate -> generate_list
+/etc/rbl_list     -> list_bans
+/etc/rbl_monitor  -> monitor
+/etc/rbl_report   -> report
+```
+
+# Configuration Options
+**rspamd Blocklists**
+```
+$asnlist = '/etc/rspamd/local.d/maps/blockasn.map';
+$iplist  = '/etc/rspamd/local.d/maps/blockip.map';
+```
+
+`$asnlist` is where your rspamd will reference the blocklist map for ASNs. `$iplist` is the same, but for individual IP addresses and IP networks. All IPs are in IPv4 format.
+
+**Mail Log Settings**
+```
+$log     = '/var/log/mail.log';
+```
+
+This is where your MTA stores mail logs. This needs to be readable by the user running the script, like the rspamd blocklists.
+
+**Database Settings**
+```
+$dbname  = '';
+$dbhost  = '';
+$dbport  = 3306;
+$dbuser  = '';
+$dbpass  = '';
+```
+
+## Monitor Daemon
+
+Included is a service file that lets you run rbl_updater's `monitor` script as a daemon. Once a symlink for `monitor` is created under `/sbin`, and a symlink to `config.conf` is created under `/etc/rblupdater.conf`, you can copy `systemd/rbl-updater.service` to where your systemd instance stores these (such as `/etc/systemd/system/rbl-updater.service`). Once doing so, you simply need to run the following commands:
+
+```
+systemctl deamon-reload
+systemctl enable rbl-updater
+systemctl start rbl-updater
+```
+
+The monitor script should be running and logging in `/var/log/rbl_updater.log` or wherever you specified under `config.conf`.
+
+## Install Script
+
+Included is also an install script. As of this current version, it's not well tested, and may not perform correctly. Use at your own risk. It's interactive, so you'll need to sit with it while it runs. Run it out of the directory that the script is located in.
 
 # Latest Changes
 
-## 0-α1.2
-- Fixed log regex for monitor script.
-- Added a case for where punishment is issued for a prefix has a ton of bad IPs that do not have their ban expirations timeout.
-- Fixed DB query column typo.
-- When an IP network range is added, on duplicate key it now adds ban expiration.
-- Added variation of `spam` to the keywords monitor looks for.
-- Fixed issue where script couldn't find the config file.
-- Fixed bug where script would die if it encountered a JSON error when doing a BGP Info Query.
+## 0-α1.3
+- Updated documentation.
+- Removed versioning from config.
+- Added `list_bans`.
+- Graceful JSON failure in `report`.
+- Added ability to delete entries from `report`.
+- Added IP queue in `monitor` for JSON failure handling.
+- Dealt with some inconsistencies in how various ASN's list their information.
+- Added "provider" field to each table.
+- Reduced the information overload on `list_bans`.
+- Gave the ability to limit how many entries `list_bans` will output in the ip blocklist table.
+- Added logging to `monitor` and shifted informational output to `verbose` mode.
+- Added ability for `monitor` to import past logs and to begin the tail at the start of log file rather than end.
+- Updated `generate_list` with updated query similar to `list_bans` to not add to rspamd blocklists redundant IPs covered by network blocks.
+- Created a rudementary `install` script.
 
-# Planned Features
+# Tested System Configuration
 
-- Make Monitor a Deamon with an install script.
-- Create an automated install script...
-- Add the ability to remove bans/infractions (you can do that within mySQL if you need to right now).
+| OS        | rspamd | MTA           | SQL             | Perl   |
+| --------- | ------ | ------------- | --------------- | ------ |
+| Debian 11 | 3.1    | Postfix 3.5.6 | MariaDB 10.5.12 | 5.32.1 |
+
+# Release Cycle and Versioning
+
+This project regular release cycle is not yet determined. Versioning is under the Anomaly Versioning Scheme (2022), as outlined in `VERSIONING` under `docs`.
+
+# Support
+
+| Version                             | Support Level    | Released       | End of Support | End of Life   |
+| ----------------------------------- | ---------------- | -------------- | -------------- | ------------- |
+| Version 1 Feature Complete (future) | Full Support     | TBD            | TBD            | TBD           |
+| Version 0 Alpha 1.3 (current)       | Full Support     | 2 May 2022     | TBD            | TBD           |
+| Version 0 Alpha 1.2                 | Critical Support | 20 March 2022  | 6 April 2022   | TBD           |
+| Version 0 Alpha 1.1 or Older        | End of Life      | 16 March 2022  | 20 March 2022  | 6 April 2022  |
+
+# Contributing
+
+Public contributions are encouraged. Please review `CONTRIBUTING` under `docs` for contributing procedures. Additionally, please take a look at our `CODE_OF_CONDUCT`. By participating in this project you agree to abide by the Code of Conduct.
+
+# Contributors
+
+Primary Contributors
+
+- John Bradley - Initial Work
+
+Thanks to [all who contributed](https://github.com/userjack6880/rbl_updater/graphs/contributors) and [have given feedback](https://github.com/userjack6880/rbl_updater/issues?q=is%3Aissue).
 
 # License
 
-The RBL Updater Suite is released under GNU GPLv3. See LICENSE.
+The RBL Updater Suite is released under GNU GPLv3. See `LICENSE`.
