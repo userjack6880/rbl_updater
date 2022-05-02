@@ -1,0 +1,13 @@
+[Unit]
+Description=rbl_updater suite monitor
+After=rspamd.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+ExecStart=/sbin/rbl_monitor -c /etc/rblupdater.conf
+
+[Install]
+WantedBy=multi-user.target

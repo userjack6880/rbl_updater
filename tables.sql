@@ -1,6 +1,7 @@
 CREATE TABLE `asn_blocklist` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `asn` int(10) unsigned NOT NULL,
+  `provider` varchar(128),
   `blocked_ranges` int(10) unsigned NOT NULL,
   `total_ranges` int(10) unsigned NOT NULL,
   `infractions` int(10) unsigned NOT NULL,
@@ -14,6 +15,8 @@ CREATE TABLE `ip_blocklist` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `ip4` int(10) unsigned NOT NULL,
   `ip4_net` varchar(20) NOT NULL,
+  `asn` int(10) unsigned,
+  `provider` varchar(128),
   `infractions` int(10) unsigned NOT NULL,
   `infractions_type` tinyint(4) NOT NULL,
   `ban_expiration` datetime NOT NULL,
@@ -25,7 +28,8 @@ CREATE TABLE `ip_blocklist` (
 CREATE TABLE `ipnet_blocklist` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `ip4_net` varchar(20) NOT NULL,
-  `asn` int(11) DEFAULT NULL,
+  `asn` int(10) unsigned,
+  `provider` varchar(128),
   `infractions` int(10) unsigned NOT NULL,
   `infractions_type` tinyint(4) NOT NULL,
   `ban_expiration` datetime NOT NULL,
