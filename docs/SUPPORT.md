@@ -2,11 +2,12 @@
 
 Due to the limited time available to developrs to maintain support, dates must be set where support must end. The following is a chart outlining the support shedule for Open DMARC Analyzer.
 
-| Version                       | Support Level    | Released       | End of Support | End of Life   |
-| ----------------------------- | ---------------- | -------------- | -------------- | ------------- |
-| Version 0 Alpha 1.3 (current) | Full Support     | TBD            | TBD            | TBD           |
-| Version 0 Alpha 1.2           | Critical Support | 20 March 2022  | 6 April 2022   | TBD           |
-| Version 0 Alpha 1.1 or Older  | End of Life      | 16 March 2022  | 20 March 2022  | 6 April 2022  |
+| Version                             | Support Level    | Released       | End of Support | End of Life   |
+| ----------------------------------- | ---------------- | -------------- | -------------- | ------------- |
+| Version 1 Feature Complete (future) | Full Support     | TBD            | TBD            | TBD           |
+| Version 0 Alpha 1.3 (current)       | Full Support     | 2 May 2022     | TBD            | TBD           |
+| Version 0 Alpha 1.2                 | Critical Support | 20 March 2022  | 6 April 2022   | TBD           |
+| Version 0 Alpha 1.1 or Older        | End of Life      | 16 March 2022  | 20 March 2022  | 6 April 2022  |
 
 # Support Levels
 
