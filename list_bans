@@ -5,8 +5,8 @@
 # RBL Updater Suite - a suite to update realtime blocklists for rspamd
 # Copyright (C) 2022 - John Bradley (userjack6880)
 #
-# generate_list
-#   creates the plaintext file used by rspamd to block messages
+# list_bans 
+#   used to list all current bans by the system
 #
 # Available at: https://github.com/userjack6880/rbl_updater
 #
@@ -36,26 +36,29 @@ use Getopt::Std;
 use File::Tail;
 use File::Basename;
 use DBI;
+use Text::Table;
 
 # version number
 my $version = '1 Feature Complete';
 
 # basic settings --------------------------------------------------------------
 my %opts = ();
-getopts('c:h', \%opts);
+getopts('c:l:h', \%opts);
 
+my $limit     = ($opts{'l'} || 1000);
 my $conffile = ($opts{'c'} || 'config.conf');
 
 # usage sub -------------------------------------------------------------------
 sub usage {
 	print "\n".
 	      "\tUsage:\n".
-	      "\t\t./generate_list\n".
+	      "\t\t./list_bans [opts]\n".
 	      "\n".
-	      "\tThis script generates IP and ASN Banlists for use by RSPAMD.\n".
-	      "\n".
+	      "\tThis script shows all current bans and infractions.\n".
+          "\n".
 	      "\tOptions:\n".
           "\t\t-c\t[confpath]\tLoad Config File\n".
+	      "\t\t-l\t[number]\tlimit output of banned IPs\n".
 	      "\n";
 }
 
@@ -65,7 +68,7 @@ if (defined $opts{'h'}) {
 }
 
 # load conf file --------------------------------------------------------------
-our ($asnlist,$iplist,$dbname,$dbhost,$dbport,$dbuser,$dbpass,$maillog,$log);
+our ($asnlist,$iplist,$dbname,$dbhost,$dbport,$dbuser,$dbpass,$log);
 
 if (substr($conffile,0,1) ne '/' and substr($conffile,0,1) ne '.') { $conffile = "./$conffile"; }
 
@@ -83,8 +86,8 @@ my $dbh;
 # Begin Main Code -------------------------------------------------------------
 
 print "\nRBL Updater Suite v.$version\n".
-      "\tRSPAMD List Generator\n\n".
-      "Generating Lists\n";
+      "\tInfraction and Ban Inspector\n\n".
+      "Getting current infractions and bans...\n";
 
 # Open DB connection
 $dbh = DBI->connect(
@@ -93,63 +96,99 @@ $dbh = DBI->connect(
             $dbpass
           ) or die "Could not connect to database!\n";
 
-# open the IP List file
-open(my $fh, ">$iplist");
-
-# pull out all the Prefixes that are permabanned *or* have a ban expiration *after* today
-my $sth = $dbh->prepare(q{
-  SELECT ip4_net
-  FROM ipnet_blocklist
-  WHERE asn NOT IN (SELECT asn FROM asn_blocklist WHERE permaban = 1)
-    AND (
-           ban_expiration > NOW()
-        OR permaban = 1
-        );
-});
-$sth->execute();
-
-while (my $net = $sth->fetchrow_array()) {
-	print $fh $net."\n";
-}
-
 # pull out all IPs that are pemabanned *or* have a ban expiration *after* today
-$sth = $dbh->prepare(q{
-  SELECT INET_NTOA(ip4)
+my $sth = $dbh->prepare(q{
+  SELECT INET_NTOA(ip4), ip4_net, provider, infractions, ban_expiration, permaban
   FROM ip_blocklist
   WHERE ip4_net NOT IN (SELECT ip4_net FROM ipnet_blocklist WHERE ban_expiration > NOW() OR permaban = 1)
-    AND (
-           ban_expiration > NOW()
-        OR permaban = 1
-        );
+    AND (   ban_expiration > NOW()
+         OR permaban = 1 )
+  ORDER BY infractions DESC,
+           permaban DESC,
+           ban_expiration DESC
+  LIMIT ?;
+});
+$sth->execute($limit);
+
+print "\nIP Bans\n";
+
+my $ip_table = Text::Table->new("| IP", "| Network", "| Provider", "| Infractions", "| Ban Expiration", "|");      
+
+while (my @row = $sth->fetchrow_array()) {
+	my $ban = $row[4];
+	my $provider;
+	$ban = 'Permanent' if $row[5] == 1;
+	if (defined $row[2]) {
+		$provider = $row[2];
+	}
+	else {
+		$provider = 'Unknown';
+	}
+
+	$ip_table->load(["| ".$row[0], "| ".$row[1], "| ".$provider, "| ".$row[3], "| ".$ban, "|"]);
+}
+
+print $ip_table;
+
+# pull out all the Perfixes that are permabanned *or* have a ban expiration *after* today
+$sth = $dbh->prepare(q{
+  SELECT ip4_net, asn, provider, infractions, ban_expiration, permaban
+  FROM ipnet_blocklist
+  WHERE asn NOT IN (SELECT asn FROM asn_blocklist WHERE permaban = 1)
+    AND (   ban_expiration > NOW()
+         OR permaban = 1 )
+  ORDER BY infractions DESC,
+           permaban DESC,
+           ban_expiration DESC;
 });
 $sth->execute();
 
-while (my $ip = $sth->fetchrow_array()) {
-	print $fh $ip."\n";
+print "\nNetwork Bans\n";
+
+my $net_table = Text::Table->new("| Network", "| ASN", "| Provider", "| Infractions", "| Ban Expiration", "|");
+
+while (my @row = $sth->fetchrow_array()) {
+	my $ban = $row[4];
+	my $provider;
+	$ban = 'Permanent' if $row[5] == 1;
+	if (defined $row[2]) {
+		$provider = $row[2];
+	}
+	else {
+		$provider = 'Unknown';
+	}
+
+	$net_table->load(["| ".$row[0], "| ".$row[1], "| ".$provider, "| ".$row[3], "| ".$ban, "|"]);
 }
 
-# close file;
-close $fh or die "$iplist: $!";
-
-# open the ASN file
-open ($fh, ">$asnlist");
+print $net_table;
 
 # pull out all the ASNs that are permabanned
 $sth = $dbh->prepare(q{
-  SELECT asn
-  FROM asn_blocklist
-  WHERE permaban = 1;
+  SELECT asn, provider, blocked_ranges, total_ranges, infractions, permaban
+  FROM asn_blocklist;
 });
 $sth->execute();
 
-while (my $asn = $sth->fetchrow_array()) {
-	print $fh $asn."\n";
+print "\nASN Bans\n";
+
+my $asn_table = Text::Table->new("| ASN", "| Provider", "| Blocked Ranges", "| Total Ranges", "| Infractions", "| Permaban", "|");
+
+while (my @row = $sth->fetchrow_array()) {
+	my $perma = 'No';
+	my $provider;
+	$perma = 'Yes' if $row[5] == 1;
+	if (defined $row[1]) {
+		$provider = $row[1];
+	}
+	else {
+		$provider = 'Unknown';
+	}
+
+	$asn_table->load(["| ".$row[0], "| ".$provider, "| ".$row[2], "| ".$row[3], "| ".$row[4], "| ".$perma, "|"]);
 }
 
-# close the file;
-close $fh or die "$asnlist: $1";
-
-print "Done!\n";
+print $asn_table;
 
 # Close DB connection
 $dbh->disconnect;

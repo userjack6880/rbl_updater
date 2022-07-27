@@ -1,0 +1,317 @@
+#!/bin/bash
+
+# -----------------------------------------------------------------------------
+#
+# RBL Updater Suite - a suite to update realtime blocklists for rspamd
+# Copyright (C) 2022 - John Bradley (userjack6880)
+#
+# install
+#   installation script
+#
+# Available at: https://github.com/userjack6880/rbl_updater
+#
+# -----------------------------------------------------------------------------
+#
+# This file is part of the RBL Updater Suite for use with rspamd
+#
+# The RBL Updater Suite is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by the Free 
+# Software Foundation, either version 3 of the License, or (at your option) any
+# later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT 
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more 
+# details.
+#
+# You should have received a copy of the GNU General Public License along with 
+# this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# -----------------------------------------------------------------------------
+
+# version number
+VERSION='1 Feature Complete';
+
+# usage -----------------------------------------------------------------------
+if [[ $1 == "--help" ]]
+then
+    echo '
+    Usage:
+    ./install
+    
+    This script helps make installation nice. There are no options.
+    '
+fi
+
+# declare "global" variables --------------------------------------------------
+
+# Begin Main Code -------------------------------------------------------------
+echo "
+RBL Updater Suite v.$VERSION
+    Installer
+"
+
+# os check first, will change how this script installs some packages
+if grep -Rq "^ID=debian" /etc/os-release
+then
+    OS=debian
+    echo "OS: $OS"
+else
+    echo 'Sorry, your OS is not supported yet.'
+    exit 1
+fi
+
+VERSION=$(sed -rn 's/^VERSION_ID=\"([[:digit:]]+)\"/\1/p' /etc/os-release)
+echo "VERSION: $VERSION"
+
+SKIP=0
+
+while [ 1 == 1 ]
+do
+    read -p "
+Do you need to install perl and mariadb? [y/n]: " yn
+    case $yn in
+        [Yy]* ) break;;
+        [Nn]* ) SKIP=1; break;;
+        * ) echo "Please answer y or n";;
+    esac
+done
+
+if [ $SKIP == 0 ]
+then
+    if [ $OS == "debian" ]
+    then
+        apt install perl mariadb-server
+    fi
+else
+    echo "skipping"
+fi
+
+SKIP=0
+
+while [ 1 == 1 ]
+do
+    read -p "
+Do you need to install perl modules through the package manager? Answer 'c' 
+to use cpanm instead (installation of cpanm will be attempted). [y/n/c]: " yn
+    case $yn in
+        [Yy]* ) break;;
+        [Nn]* ) SKIP=1; break;;
+        [Cc]* ) SKIP=2; break;;
+        * ) echo "Please answer y, n, or c";;
+    esac
+done
+
+if [ $SKIP == 0 ]
+then
+    if [ $OS == "debian" ]
+    then
+        apt install libdbi-perl libfile-tail-perl libjson-perl liblwp-useragent-chicaching-perl liblwp-protocol-https-perl libtext-table-perl
+    fi
+elif [ $SKIP == 2 ]
+then
+    echo "Using cpanm instead..."
+    if [ $OS == "debian" ]
+    then
+        apt install cpanminus
+    fi
+    cpanm DBI File::Tail File::Basename Getopt::Std JSON LWP::UserAgent LWP::Protocol::https Text::Table
+else
+    echo "skipping"
+fi
+
+# now we can create symlinks in appropriate places
+echo "
+Package installations are now complete. Creating symlinks.
+"
+
+CURDIR=$(pwd)
+
+echo "/sbin/rbl_generate -> $CURDIR/generate_list"
+ln -s /sbin/rbl_generate $CURDIR/generate_list
+
+echo "/sbin/rbl_list -> $CURDIR/list_bans"
+ln -s /sbin/rbl_list $CURDIR/list_bans
+
+echo "/sbin/rbl_monitor -> $CURDRR/monitor"
+ln -s /sbin/rbl_monitor $CURDIR/monitor
+
+echo "/sbin/rbl_report -> $CURDIR/report"
+ln -s /sbin/rbl_report $CURDIR/report
+
+# prepare rspamd
+
+echo "
+Assuming rspamd is installed...
+"
+
+SKIP=0
+
+while [ 1 == 1 ]
+do
+    read -p "
+Create Map Files? [y/n]: " yn
+    case $yn in
+        [Yy]* ) break;;
+        [Nn]* ) SKIP=1; break;;
+        * ) echo "Please answer y or n";;
+    esac
+done
+
+if [ $SKIP == 0 ]
+then
+    if [ $OS == "debian" ]
+    then
+        echo "Creating Map Files..."
+        if [ $OS == "debian" ]
+        then
+            mkdir /etc/rspamd/local.d/maps/
+            touch /etc/rspamd/local.d/maps/blockasn.map
+            touch /etc/rspamd/local.d/maps/blockip.map
+        fi
+        echo "Done."
+    fi
+else
+    echo "skipping"
+fi
+
+SKIP=0
+
+while [ 1 == 1 ]
+do
+    read -p "
+Copy Multimap Conf? (will overwrite existing rspamd multimap.conf) [y/n]: " yn
+    case $yn in
+        [Yy]* ) break;;
+        [Nn]* ) SKIP=1; break;;
+        * ) echo "Please answer y or n";;
+    esac
+done
+
+if [ $SKIP == 0 ]
+then
+    if [ $OS == "debian" ]
+    then
+        echo "Copying Multimap Conf..."
+        if [ $OS == "debian" ]
+        then
+            cp $CURDIR/rspamd/multimap.conf /etc/rspamd/local.d/multimap.conf
+            systemctl reload rspamd
+        fi
+        echo "Done."
+    fi
+else
+    echo "skipping"
+fi
+
+# create config
+
+echo "
+Generating RBL Config
+"
+
+CONFIRM=0
+
+while [ $CONFIRM == 0 ]
+do
+    read -p "mail log location (default /var/log/mail.log):             " MAILLOG
+    if [ -z $MAILLOG ]
+    then
+        echo "Using Default!"
+        MAILLOG='/var/log/mail.log'
+    fi
+    read -p "rbl_update log location (default /var/log/rbl_updater.log): " LOG
+    if [ -z $LOG ]
+    then
+        echo "Using Default!"
+        LOG='/var/log/rbl_updater.log'
+    fi
+    read -p "dbname:                                                     " DBNAME
+    read -p "dbhost:                                                     " DBHOST
+    read -p "dbport (default 3306):                                      " DBPORT
+    if [ -z $DBPORT ]
+    then
+        echo "Using Default!"
+        DBPORT='3306'
+    fi
+    read -p "dbuser:                                                     " DBUSER
+    read -p "dbpass:                                                     " DBPASS
+
+    echo "
+mail log: $MAILLOG
+rbl log:  $LOG
+dbname:   $DBNAME
+dbhost:   $DBHOST
+dbport:   $DBPORT
+dbuser:   $DBUSER
+dbpass:   $DBPASS"
+
+    while [ 1 == 1 ]
+    do
+        read -p "
+Config Look Good? [y/n]: " yn
+        case $yn in
+            [Yy]* ) CONFIRM=1;break;;
+            [Nn]* ) break;;
+            * ) echo "Please answer y or n";;
+        esac
+    done
+done
+
+echo "
+Creating Config File $CURDIR/config.conf
+"
+echo "\$asnlist = '/etc/rspamd/local.d/maps/blockasn.map';" >> $CURDIR/config.conf
+echo "\$iplist  = '/etc/rspamd/local.d/maps/blockasn.map';" >> $CURDIR/config.conf
+echo "\$maillog = '$MAILLOG';" >> $CURDIR/config.conf
+echo "\$log     = '$LOG';" >> $CURDIR/config.conf
+echo "\$dbname  = '$DBNAME';" >> $CURDIR/config.conf
+echo "\$dbhost  = '$DBHOST';" >> $CURDIR/config.conf
+echo "\$dbport  = '$DBPORT';" >> $CURDIR/config.conf
+echo "\$dbuser  = '$DBUSER';" >> $CURDIR/config.conf
+echo "\$dbpass  = '$DBPASS';" >> $CURDIR/config.conf
+
+echo "/etc/rblupdater.conf -> $CURDUR/config.conf"
+ln -s /etc/rblupdater.conf $CURDUR/config.conf
+
+# create symlink for systemd
+
+echo "
+Creating Symlink for SystemD
+"
+
+if [ $OS == "debian" ]
+then
+    echo "/etc/systemd/system/rbl-updater.service -> $CURDIR/systemd/rbl-updater.service"
+    ln -s /etc/systemd/system/rbl-updater.service $CURDIR/systemd/rbl-updater.service
+fi
+
+echo "
+Updating and Enabling SystemD
+"
+
+if [ $OS == "debian" ]
+then
+    systemctl daemon-reload
+    systemctl enable rbl-updater
+fi
+
+# throw tables.sql into the database
+
+echo "
+Setting up MySQL
+"
+
+mysql --host=$DBHOST --port=$DBPORT --user=$DBUSER --password=$DBPASS $DBNAME < $CURDIR/tables.sql
+
+# at this point everything *should* be setup, let's start it up
+
+echo "
+Starting up rbl-updater
+"
+
+systemctl start rbl-updater
+
+echo "
+Installation Finished!
+"
