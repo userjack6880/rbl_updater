@@ -1,3 +1,32 @@
+# -----------------------------------------------------------------------------
+#
+# RBL Updater Suite - a suite to update realtime blocklists for rspamd
+# Copyright (C) 2022 - John Bradley (userjack6880)
+#
+# rbl-updater.service
+#   systemd service file for rbl_updater
+#
+# Available at: https://github.com/userjack6880/rbl_updater
+#
+# -----------------------------------------------------------------------------
+#
+# This file is part of the RBL Updater Suite for use with rspamd
+#
+# The RBL Updater Suite is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by the Free 
+# Software Foundation, either version 3 of the License, or (at your option) any
+# later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT 
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more 
+# details.
+#
+# You should have received a copy of the GNU General Public License along with 
+# this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# -----------------------------------------------------------------------------
+
 [Unit]
 Description=rbl_updater suite monitor
 After=rspamd.service
