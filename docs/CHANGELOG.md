@@ -1,5 +1,9 @@
 # Changelog
 
+## Version 1 Feature Complete
+- Updated documentation.
+- Feature complete release.
+
 ## 0-α1.3
 - Updated documentation.
 - Removed versioning from config.
