@@ -1,6 +1,6 @@
 # RBL Updater Suite
 
-This is the RBL Updater Suite version 0 alpha-1.3 (0-α1.3) by John Bradley (john@systemanomaly.com). The RBL Updater Suite is an Open Source suite of tools to be used in conjunction with rpsamd to help autogenerate a local realtime block list (RBL) not reliant on any external lists, such as spamhaus and the like.
+This is the RBL Updater Suite Version 1 Feature Complete (1-fc) by John Bradley (john@systemanomaly.com). The RBL Updater Suite is an Open Source suite of tools to be used in conjunction with rpsamd to help autogenerate a local realtime block list (RBL) not reliant on any external lists, such as spamhaus and the like.
 
 This software is extremely experimental and may cause collateral damage on deliverability. USE AT YOUR OWN RISK.
 
@@ -183,21 +183,9 @@ Included is also an install script. As of this current version, it's not well te
 
 # Latest Changes
 
-## 0-α1.3
+## Version 1 Feature Complete
 - Updated documentation.
-- Removed versioning from config.
-- Added `list_bans`.
-- Graceful JSON failure in `report`.
-- Added ability to delete entries from `report`.
-- Added IP queue in `monitor` for JSON failure handling.
-- Dealt with some inconsistencies in how various ASN's list their information.
-- Added "provider" field to each table.
-- Reduced the information overload on `list_bans`.
-- Gave the ability to limit how many entries `list_bans` will output in the ip blocklist table.
-- Added logging to `monitor` and shifted informational output to `verbose` mode.
-- Added ability for `monitor` to import past logs and to begin the tail at the start of log file rather than end.
-- Updated `generate_list` with updated query similar to `list_bans` to not add to rspamd blocklists redundant IPs covered by network blocks.
-- Created a rudementary `install` script.
+- Feature complete release.
 
 # Tested System Configuration
 
@@ -213,10 +201,9 @@ This project regular release cycle is not yet determined. Versioning is under th
 
 | Version                             | Support Level    | Released       | End of Support | End of Life   |
 | ----------------------------------- | ---------------- | -------------- | -------------- | ------------- |
-| Version 1 Feature Complete (future) | Full Support     | TBD            | TBD            | TBD           |
-| Version 0 Alpha 1.3 (current)       | Full Support     | 2 May 2022     | TBD            | TBD           |
-| Version 0 Alpha 1.2                 | Critical Support | 20 March 2022  | 6 April 2022   | TBD           |
-| Version 0 Alpha 1.1 or Older        | End of Life      | 16 March 2022  | 20 March 2022  | 6 April 2022  |
+| Version 1 Feature Complete          | Full Support     | 27 July 2022   | TBD            | TBD           |
+| Version 0 Alpha 1.3                 | Critical Support | 2 May 2022     | 27 July 2022   | TBD           |
+| Version 0 Alpha 1.2                 | End of Life      | 20 March 2022  | 6 April 2022   | 27 July 2022  |
 
 # Contributing
 
@@ -230,6 +217,6 @@ Primary Contributors
 
 Thanks to [all who contributed](https://github.com/userjack6880/rbl_updater/graphs/contributors) and [have given feedback](https://github.com/userjack6880/rbl_updater/issues?q=is%3Aissue).
 
-# License
+# Licenses and Copyrights
 
-The RBL Updater Suite is released under GNU GPLv3. See `LICENSE`.
+Copyright © 2022 John Bradley (userjack6880). The RBL Updater Suite is released under GNU GPLv3. See `LICENSE`.
