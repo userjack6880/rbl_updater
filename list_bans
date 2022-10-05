@@ -39,7 +39,7 @@ use DBI;
 use Text::Table;
 
 # version number
-my $version = '1 Feature Complete';
+my $version = '1 Beta 1';
 
 # basic settings --------------------------------------------------------------
 my %opts = ();

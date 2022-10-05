@@ -41,7 +41,7 @@ use LWP::Protocol::https;
 use DBI;
 
 # version number
-my $version = '1 Feature Complete';
+my $version = '1 Beta 1';
 
 # basic settings --------------------------------------------------------------
 my %opts = ();

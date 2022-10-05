@@ -42,7 +42,7 @@ use LWP::Protocol::https;
 use DBI;
 
 # version number
-my $version = '1 Feature Complete';
+my $version = '1 Beta 1';
 
 # basic settings --------------------------------------------------------------
 my %opts = ();
@@ -241,7 +241,7 @@ sub add_asn {
 		print "$percent% banned\n" if $verbose;
         logme("$percent% banned");
 
-		if ($percent > 50) {
+		if ($percent > 10) {
 			print "threshold exceeded!\n" if $verbose;
             logme("threshold exceeded!");
 

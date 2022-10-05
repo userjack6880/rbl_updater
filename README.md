@@ -1,6 +1,6 @@
 # RBL Updater Suite
 
-This is the RBL Updater Suite Version 1 Feature Complete (1-fc) by John Bradley (john@systemanomaly.com). The RBL Updater Suite is an Open Source suite of tools to be used in conjunction with rpsamd to help autogenerate a local realtime block list (RBL) not reliant on any external lists, such as spamhaus and the like.
+This is the RBL Updater Suite Version 1 Beta 1 (1-β1) by John Bradley (john@systemanomaly.com). The RBL Updater Suite is an Open Source suite of tools to be used in conjunction with rpsamd to help autogenerate a local realtime block list (RBL) not reliant on any external lists, such as spamhaus and the like.
 
 This software is extremely experimental and may cause collateral damage on deliverability. USE AT YOUR OWN RISK.
 
@@ -79,7 +79,7 @@ Bans are cumulative, and infractions are permanently recorded.
 
 Usually at this point, no further actions are needed, but a particularly bad ISP will end up with a ton of bad prefixes. At this point, the ASN gets penalized.
 
-- Up to 50% of prefixes can be permanently banned before ASN penalties are applied.
+- Up to 10% of prefixes can be permanently banned before ASN penalties are applied.
 - First penalty is a 1 week ASN ban.
 - Second penalty is a 1 month ASN ban.
 - Third penalty is a permanent ASN ban.
@@ -183,9 +183,9 @@ Included is also an install script. As of this current version, it's not well te
 
 # Latest Changes
 
-## Version 1 Feature Complete
-- Updated documentation.
-- Feature complete release.
+## 1-β1
+- ASN Ban Tuning
+- Beta release.
 
 # Tested System Configuration
 
@@ -201,9 +201,9 @@ This project regular release cycle is not yet determined. Versioning is under th
 
 | Version                             | Support Level    | Released       | End of Support | End of Life   |
 | ----------------------------------- | ---------------- | -------------- | -------------- | ------------- |
-| Version 1 Feature Complete          | Full Support     | 27 July 2022   | TBD            | TBD           |
-| Version 0 Alpha 1.3                 | Critical Support | 2 May 2022     | 27 July 2022   | TBD           |
-| Version 0 Alpha 1.2                 | End of Life      | 20 March 2022  | 6 April 2022   | 27 July 2022  |
+| Version 1 Beta 1                    | Full Support     | Soon           | TBD            | TBD           |
+| Version 1 Feature Complete          | Critical Support | 27 July 2022   | Soon           | TBD           |
+| Version 0 Alpha 1.3 or Older        | End of Life      | 2 May 2022     | 27 July 2022   | Soon          |
 
 # Contributing
 
