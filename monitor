@@ -178,13 +178,15 @@ sub db_keepalive {
 sub add_asn {
 	my $asn = shift;
 	my $provider = shift;
+  my $infraction = shift;
 	db_keepalive();
 	my $sth;
 
 	# the most severe of penalties - absolutely will have collateral damage
 	# - initially based on percentage of ranges that get permabanned, only add to spam
 	#   scores
-	# - when threshold is reached (>50%), ASN gets banned for increasing amounts of time
+	# - when threshold is reached (>10%), ASN gets banned for increasing amounts of time
+  # - networks that are agregious will add infractions
 
 	# when the recusive call returns, we can continue;
 
@@ -223,12 +225,15 @@ sub add_asn {
 	else {
 		# instead of recording the ASN, we now update the ASN record
 
-		$sth = $dbh->prepare(q{
-		  UPDATE asn_blocklist
-		  SET blocked_ranges = blocked_ranges + 1
-		  WHERE asn = ?;
-		});
-		$sth->execute($asn);
+    if ($infraction == 0) {
+      # skip this if we're just updating infraction counts
+      $sth = $dbh->prepare(q{
+        UPDATE asn_blocklist
+        SET blocked_ranges = blocked_ranges + 1
+        WHERE asn = ?;
+      });
+      $sth->execute($asn);
+    }
 
 		# next, we need to count how many banned ranges are in this ASN, then determine action
 		my ($banned,$total,$infractions) = $dbh->selectrow_array("SELECT blocked_ranges,total_ranges,infractions FROM asn_blocklist WHERE asn = '$asn';");
@@ -236,7 +241,7 @@ sub add_asn {
         logme("AS$asn has $total ranges. $banned ranges are banned. AS$asn has $infractions infractions");
 
 		# because this will never be the first time this happens, we can safey process actions here...
-		# check if 50% has been exceeded
+		# check if 10% has been exceeded
 		my $percent = sprintf("%.0f",($banned/$total)*100);
 		print "$percent% banned\n" if $verbose;
         logme("$percent% banned");
@@ -295,12 +300,12 @@ sub add_asn {
 				  END;
 				});
 			}
-			else {
+			elsif ($infractions == 2) {
 				print "AS$asn: third infraction, perma ban\n" if $verbose;
                 logme("AS$asn: third infraction, permaban");
 				$sth = $dbh->prepare(q{
 				  UPDATE asn_blocklist
-					SET permaban = 1
+					SET permaban = 1, infractions = infractions +1
 				  WHERE asn = ?
 				  AND permaban = 0;
 				});
@@ -311,6 +316,21 @@ sub add_asn {
 				  ON DUPLICATE KEY UPDATE permaban = 1;
 				});
 			}
+      else {
+        print "AS$asn: additional infraction\n" if $verbose;
+                logme("AS$asn: additional infraction");
+        $sth = $dbh->prepare(q{
+				  UPDATE asn_blocklist
+					SET infractions = infractions +1
+				  WHERE asn = ?;
+        });
+        $sth->execute($asn);
+				$sth = $dbh->prepare(q{
+				  INSERT INTO ipnet_blocklist (ip4_net, asn, provider, infractions, infractions_type, ban_expiration, permaban)
+				  VALUES (?,?,?,0,1,NOW(),1)
+				  ON DUPLICATE KEY UPDATE permaban = 1;
+				});
+      }
 			foreach my $range (@ranges) {
 				print "\tBan added for $range\n" if $verbose;
                 logme("Ban added for $range");
@@ -359,8 +379,14 @@ sub add_net {
 		});
 		$sth->execute($prefix);
 
-		add_asn($asn,$provider) if $sth->rows >= 1;
+		add_asn($asn,$provider,0) if $sth->rows >= 1;
 	}
+
+  # where a permanently banned range continue to send messages, punish the asn with an infraction
+  if ($infractions >25) {
+    add_asn($asn,$provider,1);
+  }
+
 	else {
 		if ($infractions == 3) {
 			$sth = $dbh->prepare(q{
