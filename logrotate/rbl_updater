@@ -1,0 +1,7 @@
+/var/log/rbl_updater.log{
+	weekly
+	rotate 4
+	compress
+	missingok
+	notifempty
+}

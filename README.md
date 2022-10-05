@@ -184,7 +184,8 @@ Included is also an install script. As of this current version, it's not well te
 # Latest Changes
 
 ## 1-β1
-- ASN Ban Tuning
+- ASN ban tuning.
+- Logrotate config.
 - Beta release.
 
 # Tested System Configuration

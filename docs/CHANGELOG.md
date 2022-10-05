@@ -1,7 +1,8 @@
 # Changelog
 
 ## 1-β1
-- ASN Ban Tuning
+- ASN ban tuning.
+- Logrotate config.
 - Beta release.
 
 ## Version 1 Feature Complete

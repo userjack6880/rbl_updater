@@ -204,6 +204,34 @@ else
     echo "skipping"
 fi
 
+SKIP=0
+
+while [ 1 == 1 ]
+do
+    read -p "
+Copy Logrotate Conf? [y/n]: " yn
+    case $yn in
+        [Yy]* ) break;;
+        [Nn]* ) SKIP=1; break;;
+        * ) echo "Please answer y or n";;
+    esac
+done
+
+if [ $SKIP == 0 ]
+then
+    if [ $OS == "debian" ]
+    then
+        echo "Copying Logrotate Conf..."
+        if [ $OS == "debian" ]
+        then
+            cp $CURDIR/logrotate/rbl_updater /etc/logrotate.d/rbl_updater
+        fi
+        echo "Done."
+    fi
+else
+    echo "skipping"
+fi
+
 # create config
 
 echo "
